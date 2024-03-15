@@ -13,8 +13,9 @@ def calculate_metrics(grid, attribute_name):
     max_value = max(values)
     min_value = min(values)
     avg_value = sum(values) / len(values)
+    n_value = sum(values)
 
-    return max_value, min_value, avg_value
+    return max_value, min_value, avg_value, n_value
 
 def run_simulation(num_days, num_humans, num_zombies):
 
@@ -37,24 +38,25 @@ def run_simulation(num_days, num_humans, num_zombies):
     # Run the simulation for the specified number of days
     for day in range(1, num_days + 1):
         grid.simulate_day()
-        humans, zombies, full_dead = grid.count_humans_and_zombies()
         grid.remove_inactive_beings()
-        # # Update human lifespans
-        # for _ in range(humans):
-        #     human_lifespans.append(day)
+        humans, zombies = grid.count_humans_and_zombies()
 
         if humans == 0 and days_until_all_zombies is None:
             days_until_all_zombies = day
-            break  # Stop the simulation if there are no humans left
+            break
 
-    # Calculate metrics at the end of the simulation
-    # store the counts for humans and zombies at the end of the simulation
-    humans, zombies, full_dead = grid.count_humans_and_zombies()
+
+    #get the number of humans and zombies that are not active
+    humans, zombies = grid.count_humans_and_zombies()
+    full_dead = (num_humans + num_zombies) - (humans + zombies)
+
+
+    # Calculate metrics for the simulation
 
     metrics = {}
     attr_list = [
-        "lifespan_h",
-        "lifespan_z",
+        # "lifespan_h",
+        # "lifespan_z",
         "resources",
         "esc_xp",
         "win_xp",
@@ -63,16 +65,17 @@ def run_simulation(num_days, num_humans, num_zombies):
         "theft",
         "zh_kd",
         "hh_kd",
-        "hz_kd",
+        # "hz_kd",
         "z_enc",
         "h_enc"
     ]
 
     for item in attr_list:
-        max_value, min_value, avg_value = calculate_metrics(grid, item)
+        max_value, min_value, avg_value, n_value = calculate_metrics(grid, item)
         metrics[f'max_{item}'] = max_value
         metrics[f'min_{item}'] = min_value
         metrics[f'mean_{item}'] = avg_value
+        metrics[f'count_{item}'] = n_value
 
     # Add other metrics like 'days_until_all_zombies', 'humans', 'zombies', 'full_dead' to the metrics dictionary
     metrics['days_until_all_zombies'] = days_until_all_zombies if days_until_all_zombies is not None else num_days

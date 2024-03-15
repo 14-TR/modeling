@@ -126,11 +126,13 @@ class Being:
                 self.resources= 0 # Human becomes a zombie
                 # print(f"Being {self.id} (human) starved.")
 
+#-----------------------------------------------------------------
 class Grid:
     def __init__(self, width, height):
         self.width = width
         self.height = height
         self.beings = []
+        self.rmv_beings = 0
         self.occupied_positions = set()
 
     def add_being(self, being):
@@ -168,11 +170,11 @@ class Grid:
 
     def remove_inactive_beings(self):
         self.beings = [being for being in self.beings if being.is_active]
+        # add to the number of beings removed the number self.beings list gains
         self.occupied_positions = {(being.x, being.y) for being in self.beings}
+
 
     def count_humans_and_zombies(self):
         humans = sum(1 for being in self.beings if not being.is_zombie and being.is_active)
         zombies = sum(1 for being in self.beings if being.is_zombie and being.is_active)
-        full_dead = sum(1 for being in self.beings if not being.is_active)  # Count beings that are inactive
-        return humans, zombies, full_dead
-
+        return humans, zombies
