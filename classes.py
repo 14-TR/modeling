@@ -55,13 +55,14 @@ class Being:
 
     def encounter_zombie(self, zombie):
         # Decide the outcome: escape, win, or get infected
-        outcome = random.choices(['escape', 'win', 'infected'], weights=[self.esc_xp, self.win_xp, 1])[0]
+        outcome = random.choices(['escape', 'win', 'infected'], weights=[self.esc_xp + 1, self.win_xp + 1, 2])[0]
 
         if outcome == 'escape':
             self.esc_xp += 1  # Gain escape experience
+            self.z_enc += 1
         elif outcome == 'win':
             self.win_xp += 1  # Gain win experience
-            self.resources += 1  # Gain a small amount of resources
+            self.resources += zombie.resources  # Gain a small amount of resources
             # kill the zombie
             zombie.is_active = False
             self.zh_kd += 1
@@ -80,14 +81,16 @@ class Being:
             other_human.love_xp += 1
             avg_resources = (self.resources + other_human.resources) / 2
             self.resources = other_human.resources = avg_resources  # Even out resources
+            self.h_enc += 1
+
         else:
-            if outcome == 'war':
-                if self.war_xp > other_human.war_xp:
-                    self.war_xp += 1  # Gain war experience
-                    self.resources += other_human.resources  # Take all resources from the defeated
-                    other_human.resources = 0  # The defeated loses all resources
-                    other_human.is_zombie = True  # The defeated becomes a zombie
-                    self.hh_kd += 1
+            if self.war_xp > other_human.war_xp:
+                self.war_xp += 1  # Gain war experience
+                self.resources += other_human.resources  # Take all resources from the defeated
+                other_human.resources = 0  # The defeated loses all resources
+                other_human.is_zombie = True  # The defeated becomes a zombie
+                self.hh_kd += 1
+                self.h_enc += 1
             else:
                 if self.war_xp == other_human.war_xp:
                     theft_outcome = random.choices(['theft','war'], weights=[self.theft + 0.1, self.war_xp + 0.1])[0]
@@ -96,15 +99,17 @@ class Being:
                         amount = random.randint(0,round(other_human.resources))
                         self.resources += amount
                         other_human.resources -= amount
-                        other_human.theft -= 1
+                        if other_human.theft > 1:
+                            other_human.theft -= 1
+                        else:
+                            other_human.theft = 0
                     else:
                         self.war_xp += 1  # Gain war experience
                         self.resources += other_human.resources  # Take all resources from the defeated
                         other_human.resources = 0  # The defeated loses all resources
                         other_human.is_zombie = True  # The defeated becomes a zombie
                         self.hh_kd += 1
-
-        self.h_enc += 1
+                        self.h_enc += 1
 
     def update_status(self):
         if self.is_zombie:
@@ -117,7 +122,8 @@ class Being:
                 self.resources -= 0.5  # Simulate resource consumption for humans
                 self.lifespan_h += 1
             else:
-                self.is_zombie = True  # Human becomes a zombie
+                self.is_zombie = True
+                self.resources= 0 # Human becomes a zombie
                 # print(f"Being {self.id} (human) starved.")
 
 class Grid:
@@ -165,8 +171,8 @@ class Grid:
         self.occupied_positions = {(being.x, being.y) for being in self.beings}
 
     def count_humans_and_zombies(self):
-        humans = sum(1 for being in self.beings if not being.is_zombie)
-        zombies = sum(1 for being in self.beings if being.is_zombie)
-        full_dead = sum(1 for being in self.beings if not being.is_active)
+        humans = sum(1 for being in self.beings if not being.is_zombie and being.is_active)
+        zombies = sum(1 for being in self.beings if being.is_zombie and being.is_active)
+        full_dead = sum(1 for being in self.beings if not being.is_active)  # Count beings that are inactive
         return humans, zombies, full_dead
 
