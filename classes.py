@@ -1,4 +1,27 @@
 import random
+from logger import Log, Record
+
+#==================================================================
+class DayTracker:
+    current_day = 1
+
+    @classmethod
+    def increment_day(cls):
+        cls.current_day += 1
+
+    @classmethod
+    def get_current_day(cls):
+        return cls.current_day
+
+    @classmethod
+    def reset(cls):
+        cls.current_day = 1
+
+
+#------------------------------------------------------------------
+
+#------------------------------------------------------------------
+
 
 class Being:
     last_id = 0
@@ -29,6 +52,11 @@ class Being:
         # Ensure the being stays within the grid
         self.x = max(0, min(self.x + dx, grid.width - 1))
         self.y = max(0, min(self.y + dy, grid.height - 1))
+        log_instance = Log()
+        # Example of logging a movement event
+        log_instance.add_record(Record(day=DayTracker.get_current_day(), being_id=f"{self.id}", event_type="Movement",
+                                       description=f"ID {self.id} moved to ({dx}, {dy})"))
+
 
     def encounter(self, other):
         if self.is_zombie:
@@ -51,37 +79,63 @@ class Being:
                 # Human gets infected and becomes a zombie
                 other.is_zombie = True
                 self.lifespan_z += 3  # The infecting zombie's lifespan increases
-                self.hz_kd += 1  # Increment the count of humans killed as a zombie
+                self.hz_kd += 1  # Increment the count of humans killed as a zombie- take a look at this for correct logic
+                log_instance = Log()
+                details = f"ID {self.id} contacted{other.id} @ {self.x, self.y}"
+                log_instance.add_record(
+                    Record(day=DayTracker.get_current_day(), being_id=f"{self.id}", event_type="INF",
+                           description=f"{details}"))
 
     def encounter_zombie(self, zombie):
         # Decide the outcome: escape, win, or get infected
         outcome = random.choices(['escape', 'win', 'infected'], weights=[self.esc_xp + 1, self.win_xp + 1, 2])[0]
-
+        self_id = f"{self.id}"
         if outcome == 'escape':
             self.esc_xp += 1  # Gain escape experience
             self.z_enc += 1
+            log_instance = Log()
+            details = f"ID {self.id} contacted {zombie.id} @ {self.x, self.y}"
+            log_instance.add_record(
+                Record(day=DayTracker.get_current_day(),  being_id=f"{self_id}", event_type="ESC",
+                       description=f"{details}"))
         elif outcome == 'win':
             self.win_xp += 1  # Gain win experience
             self.resources += zombie.resources  # Gain a small amount of resources
             # kill the zombie
             zombie.is_active = False
             self.zh_kd += 1
+            log_instance = Log()
+            details = f"ID {self.id} contacted {zombie.id} @ {self.x, self.y}"
+            log_instance.add_record(
+                Record(day=DayTracker.get_current_day(),  being_id=f"{self_id}", event_type="WIN",
+                       description=f"{details}"))
         else:  # infected
             self.is_zombie = True
             self.lifespan_z = 10  # Reset lifespan as a zombie
+            log_instance = Log()
+            details = f"ID {self.id} contacted {zombie.id} @ {self.x, self.y}"
+            log_instance.add_record(
+                Record(day=DayTracker.get_current_day(),  being_id=f"{self_id}", event_type="INF",
+                       description=f"{details}"))
 
         self.z_enc += 1
 
     def encounter_human(self, other_human):
         # Decide the outcome: love or war, ensuring weights are never zero by adding a small value
         outcome = random.choices(['love', 'war'], weights=[self.love_xp + 0.1, self.war_xp + 0.1])[0]
-
+        self_id = f"{self.id}"
+        other_human_id = f"{other_human.id}"
         if outcome == 'love':
             self.love_xp += 1  # Gain love experience
             other_human.love_xp += 1
             avg_resources = (self.resources + other_human.resources) / 2
             self.resources = other_human.resources = avg_resources  # Even out resources
             self.h_enc += 1
+            log_instance = Log()
+            details = f"ID {self.id} contacted {other_human.id} @ {self.x, self.y}"
+            log_instance.add_record(
+                Record(day=DayTracker.get_current_day(), being_id=f"{self_id}", event_type="LUV",
+                       description=f"{details}"))
 
         else:
             if self.war_xp > other_human.war_xp:
@@ -91,6 +145,11 @@ class Being:
                 other_human.is_zombie = True  # The defeated becomes a zombie
                 self.hh_kd += 1
                 self.h_enc += 1
+                log_instance = Log()
+                details = f"ID {self.id} contacted {other_human.id} @ {self.x, self.y}"
+                log_instance.add_record(
+                    Record(day=DayTracker.get_current_day(), being_id=f"{self_id}", event_type="WAR",
+                           description=f"{details}"))
             else:
                 if self.war_xp == other_human.war_xp:
                     theft_outcome = random.choices(['theft','war'], weights=[self.theft + 0.1, self.war_xp + 0.1])[0]
@@ -99,8 +158,18 @@ class Being:
                         amount = random.randint(0,round(other_human.resources))
                         self.resources += amount
                         other_human.resources -= amount
+                        log_instance = Log()
+                        details = f"ID {self.id} contacted {other_human.id} @ {self.x, self.y}"
+                        log_instance.add_record(
+                            Record(day=DayTracker.get_current_day(),  being_id=f"{self_id}", event_type="STL",
+                                   description=f"{details}"))
                         if other_human.theft > 1:
                             other_human.theft -= 1
+                            log_instance = Log()
+                            details = f"{other_human.id}contacted {self.id} @ {other_human.x, other_human.y}"
+                            log_instance.add_record(
+                                Record(day=DayTracker.get_current_day(), being_id=f"{other_human_id}", event_type="INF",
+                                       description=f"{details}"))
                         else:
                             other_human.theft = 0
                     else:
@@ -110,6 +179,11 @@ class Being:
                         other_human.is_zombie = True  # The defeated becomes a zombie
                         self.hh_kd += 1
                         self.h_enc += 1
+                        log_instance = Log()
+                        details = f"ID {self.id} contacted {other_human.id} @ {self.x, self.y}"
+                        log_instance.add_record(
+                            Record(day=DayTracker.get_current_day(),  being_id=f"{self_id}", event_type="WAR",
+                                   description=f"{details}"))
 
     def update_status(self):
         if self.is_zombie:
