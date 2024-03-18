@@ -1,4 +1,5 @@
-from classes import Being, Grid
+from classes import Being, Grid, DayTracker, Log
+import pandas as pd
 import random
 
 
@@ -40,6 +41,7 @@ def run_simulation(num_days, num_humans, num_zombies):
         grid.simulate_day()
         grid.remove_inactive_beings()
         humans, zombies = grid.count_humans_and_zombies()
+        DayTracker.increment_day()
 
         if humans == 0 and days_until_all_zombies is None:
             days_until_all_zombies = day
@@ -86,4 +88,23 @@ def run_simulation(num_days, num_humans, num_zombies):
     return metrics
 
 
+def write_log_to_dataframe():
+    log_instance = Log()
+    # Create a list of dictionaries, each representing a log record
+    data = [
+        {
+            'Epoch': record.epoch,
+            'Day': record.day,
+            'Being ID': record.being_id,
+            'Event Type': record.event_type,
+            'Description': record.description
+        }
+        for record in log_instance.records
+    ]
+
+    # Convert the list of dictionaries to a DataFrame
+    log_df = pd.DataFrame(data)
+
+    # Return the DataFrame
+    return log_df
 

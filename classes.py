@@ -1,5 +1,4 @@
 import random
-from logger import Log, Record
 
 #==================================================================
 class DayTracker:
@@ -19,6 +18,25 @@ class DayTracker:
 
 
 #------------------------------------------------------------------
+
+
+class Epoch:
+    epoch = 1
+
+    @classmethod
+    def increment_sim(cls):
+        cls.epoch += 1
+
+    @classmethod
+    def get_current_epoch(cls):
+        return cls.epoch
+
+    @classmethod
+    def reset(cls):
+        cls.epoch = 1
+
+
+
 
 #------------------------------------------------------------------
 
@@ -53,10 +71,13 @@ class Being:
         self.x = max(0, min(self.x + dx, grid.width - 1))
         self.y = max(0, min(self.y + dy, grid.height - 1))
         log_instance = Log()
+        details = f"moved to ({dx}, {dy})"
         # Example of logging a movement event
-        log_instance.add_record(Record(day=DayTracker.get_current_day(), being_id=f"{self.id}", event_type="Movement",
-                                       description=f"ID {self.id} moved to ({dx}, {dy})"))
-
+        log_instance.add_record(Record(epoch=Epoch.get_current_epoch(),
+                                       day=DayTracker.get_current_day(),
+                                       being_id=f"{self.id}",
+                                       event_type="MOV",
+                                       description=details))
 
     def encounter(self, other):
         if self.is_zombie:
@@ -81,10 +102,13 @@ class Being:
                 self.lifespan_z += 3  # The infecting zombie's lifespan increases
                 self.hz_kd += 1  # Increment the count of humans killed as a zombie- take a look at this for correct logic
                 log_instance = Log()
-                details = f"ID {self.id} contacted{other.id} @ {self.x, self.y}"
+                details = f"contacted {other.id} @ {self.x, self.y}"
                 log_instance.add_record(
-                    Record(day=DayTracker.get_current_day(), being_id=f"{self.id}", event_type="INF",
-                           description=f"{details}"))
+                    Record(epoch=Epoch.get_current_epoch(),
+                           day=DayTracker.get_current_day(),
+                           being_id=f"{self.id}",
+                           event_type="INF",
+                           description=details))
 
     def encounter_zombie(self, zombie):
         # Decide the outcome: escape, win, or get infected
@@ -94,10 +118,13 @@ class Being:
             self.esc_xp += 1  # Gain escape experience
             self.z_enc += 1
             log_instance = Log()
-            details = f"ID {self.id} contacted {zombie.id} @ {self.x, self.y}"
+            details = f"contacted {zombie.id} @ {self.x, self.y}"
             log_instance.add_record(
-                Record(day=DayTracker.get_current_day(),  being_id=f"{self_id}", event_type="ESC",
-                       description=f"{details}"))
+                Record(epoch=Epoch.get_current_epoch(),
+                       day=DayTracker.get_current_day(),
+                       being_id=f"{self.id}",
+                       event_type="ESC",
+                       description=details))
         elif outcome == 'win':
             self.win_xp += 1  # Gain win experience
             self.resources += zombie.resources  # Gain a small amount of resources
@@ -105,18 +132,24 @@ class Being:
             zombie.is_active = False
             self.zh_kd += 1
             log_instance = Log()
-            details = f"ID {self.id} contacted {zombie.id} @ {self.x, self.y}"
+            details = f"contacted {zombie.id} @ {self.x, self.y}"
             log_instance.add_record(
-                Record(day=DayTracker.get_current_day(),  being_id=f"{self_id}", event_type="WIN",
-                       description=f"{details}"))
+                Record(epoch=Epoch.get_current_epoch(),
+                       day=DayTracker.get_current_day(),
+                       being_id=f"{self.id}",
+                       event_type="WIN",
+                       description=details))
         else:  # infected
             self.is_zombie = True
             self.lifespan_z = 10  # Reset lifespan as a zombie
             log_instance = Log()
-            details = f"ID {self.id} contacted {zombie.id} @ {self.x, self.y}"
+            details = f"contacted Z-{zombie.id} @ {self.x, self.y}"
             log_instance.add_record(
-                Record(day=DayTracker.get_current_day(),  being_id=f"{self_id}", event_type="INF",
-                       description=f"{details}"))
+                Record(epoch=Epoch.get_current_epoch(),
+                       day=DayTracker.get_current_day(),
+                       being_id=f"{self.id}",
+                       event_type="INF",
+                       description=details))
 
         self.z_enc += 1
 
@@ -132,10 +165,13 @@ class Being:
             self.resources = other_human.resources = avg_resources  # Even out resources
             self.h_enc += 1
             log_instance = Log()
-            details = f"ID {self.id} contacted {other_human.id} @ {self.x, self.y}"
+            details = f"contacted {other_human.id} @ {self.x, self.y}"
             log_instance.add_record(
-                Record(day=DayTracker.get_current_day(), being_id=f"{self_id}", event_type="LUV",
-                       description=f"{details}"))
+                Record(epoch=Epoch.get_current_epoch(),
+                       day=DayTracker.get_current_day(),
+                       being_id=f"{self.id}",
+                       event_type="LUV",
+                       description=details))
 
         else:
             if self.war_xp > other_human.war_xp:
@@ -146,10 +182,13 @@ class Being:
                 self.hh_kd += 1
                 self.h_enc += 1
                 log_instance = Log()
-                details = f"ID {self.id} contacted {other_human.id} @ {self.x, self.y}"
+                details = f"contacted {other_human.id} @ {self.x, self.y}"
                 log_instance.add_record(
-                    Record(day=DayTracker.get_current_day(), being_id=f"{self_id}", event_type="WAR",
-                           description=f"{details}"))
+                    Record(epoch=Epoch.get_current_epoch(),
+                           day=DayTracker.get_current_day(),
+                           being_id=f"{self.id}",
+                           event_type="WAR",
+                           description=details))
             else:
                 if self.war_xp == other_human.war_xp:
                     theft_outcome = random.choices(['theft','war'], weights=[self.theft + 0.1, self.war_xp + 0.1])[0]
@@ -159,17 +198,23 @@ class Being:
                         self.resources += amount
                         other_human.resources -= amount
                         log_instance = Log()
-                        details = f"ID {self.id} contacted {other_human.id} @ {self.x, self.y}"
+                        details = f"contacted {other_human.id} @ {self.x, self.y}"
                         log_instance.add_record(
-                            Record(day=DayTracker.get_current_day(),  being_id=f"{self_id}", event_type="STL",
-                                   description=f"{details}"))
+                            Record(epoch=Epoch.get_current_epoch(),
+                                   day=DayTracker.get_current_day(),
+                                   being_id=f"{self.id}",
+                                   event_type="STL",
+                                   description=details))
                         if other_human.theft > 1:
                             other_human.theft -= 1
                             log_instance = Log()
-                            details = f"{other_human.id}contacted {self.id} @ {other_human.x, other_human.y}"
+                            details = f"contacted {self.id} @ {other_human.x, other_human.y}"
                             log_instance.add_record(
-                                Record(day=DayTracker.get_current_day(), being_id=f"{other_human_id}", event_type="INF",
-                                       description=f"{details}"))
+                                Record(epoch=Epoch.get_current_epoch(),
+                                       day=DayTracker.get_current_day(),
+                                       being_id=f"{other_human.id}",
+                                       event_type="ROB",
+                                       description=details))
                         else:
                             other_human.theft = 0
                     else:
@@ -180,10 +225,13 @@ class Being:
                         self.hh_kd += 1
                         self.h_enc += 1
                         log_instance = Log()
-                        details = f"ID {self.id} contacted {other_human.id} @ {self.x, self.y}"
+                        details = f"contacted {other_human.id} @ {self.x, self.y}"
                         log_instance.add_record(
-                            Record(day=DayTracker.get_current_day(),  being_id=f"{self_id}", event_type="WAR",
-                                   description=f"{details}"))
+                            Record(epoch=Epoch.get_current_epoch(),
+                                   day=DayTracker.get_current_day(),
+                                   being_id=f"{self.id}",
+                                   event_type="WAR",
+                                   description=details))
 
     def update_status(self):
         if self.is_zombie:
@@ -252,3 +300,49 @@ class Grid:
         humans = sum(1 for being in self.beings if not being.is_zombie and being.is_active)
         zombies = sum(1 for being in self.beings if being.is_zombie and being.is_active)
         return humans, zombies
+
+# -----------------------------------------------------------------------------------------
+
+
+class Record:
+    def __init__(self, epoch, day, being_id, event_type, description):
+        self.epoch = epoch
+        self.day = day
+        self.being_id = being_id
+        self.event_type = event_type
+        self.description = description
+
+    def __repr__(self):
+        return (f"Epoch: {self.epoch}, "
+                f"Day {self.day}, "
+                f"ID:{self.being_id}, "
+                f"Type: {self.event_type}, "
+                f"Desc: {self.description}")
+
+#------------------------------------------------------------------
+
+
+class Log:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(Log, cls).__new__(cls)
+            cls._instance.records = []  # Initialize records only once here
+        return cls._instance
+
+    def __init__(self):
+        if not hasattr(self, 'records'):  # Ensure that 'records' is only initialized once
+            self.records = []
+
+    def add_record(self, record):
+        self.records.append(record)
+
+    def get_records_by_day(self, day):
+        return [record for record in self.records if record.day == day]
+
+    def get_records_by_type(self, event_type):
+        return [record for record in self.records if record.event_type == event_type]
+
+    def __repr__(self):
+        return "\n".join(str(record) for record in self.records)
