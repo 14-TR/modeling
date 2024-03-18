@@ -1,3 +1,22 @@
+#########################################################
+"""
+
+Title: sim.py
+Author: TR Ingram
+Description:
+
+This script sets up a zombie apocalypse simulation using agent-based modeling. It defines classes for tracking
+simulation days (`DayTracker`), running multiple simulations (`Epoch`), characterizing agents (`Being`), and managing
+the simulation grid (`Grid`). The `run_simulation` function populates the grid with humans and zombies, simulates their
+interactions over specified days, and calculates key metrics such as resource levels and encounter outcomes.
+
+The `calculate_metrics` function extracts and analyzes specific attributes from the agents. Finally,
+`write_log_to_dataframe` compiles all event logs into a structured pandas DataFrame for analysis,
+capturing detailed records of the simulation's events.
+
+"""
+#########################################################
+
 from classes import Being, Grid, DayTracker, Log
 import pandas as pd
 import random
@@ -20,7 +39,7 @@ def calculate_metrics(grid, attribute_name):
 
 def run_simulation(num_days, num_humans, num_zombies):
 
-    grid = Grid(width=20, height=20)  # Adjust grid size as needed
+    grid = Grid(width=20, height=20)  # will be added to single point adjustment function later
 
     # Add humans
     for _ in range(num_humans):
@@ -36,7 +55,7 @@ def run_simulation(num_days, num_humans, num_zombies):
 
     days_until_all_zombies = None
 
-    # Run the simulation for the specified number of days
+    # Runs sim for spec # of days
     for day in range(1, num_days + 1):
         grid.simulate_day()
         grid.remove_inactive_beings()
@@ -79,7 +98,6 @@ def run_simulation(num_days, num_humans, num_zombies):
         metrics[f'mean_{item}'] = avg_value
         metrics[f'count_{item}'] = n_value
 
-    # Add other metrics like 'days_until_all_zombies', 'humans', 'zombies', 'full_dead' to the metrics dictionary
     metrics['days_until_all_zombies'] = days_until_all_zombies if days_until_all_zombies is not None else num_days
     metrics['humans'] = humans
     metrics['zombies'] = zombies
@@ -90,7 +108,7 @@ def run_simulation(num_days, num_humans, num_zombies):
 
 def write_log_to_dataframe():
     log_instance = Log()
-    # Create a list of dictionaries, each representing a log record
+    # list of dictionaries
     data = [
         {
             'Epoch': record.epoch,
@@ -102,9 +120,7 @@ def write_log_to_dataframe():
         for record in log_instance.records
     ]
 
-    # Convert the list of dictionaries to a DataFrame
     log_df = pd.DataFrame(data)
 
-    # Return the DataFrame
     return log_df
 

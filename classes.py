@@ -1,3 +1,23 @@
+#########################################################
+"""
+Title: classes.py
+Author: TR Ingram
+Description:
+
+This Python script, authored by TR Ingram, orchestrates a simulation where humans and zombies interact within a defined
+grid environment. Key components include `DayTracker` and `Epoch` for time tracking, and the `Being` class for
+entities with distinct attributes and states, differentiating between humans and zombies.
+
+The `Grid` class sets the stage for these interactions, facilitating movement and encounters that can lead to
+transformations (e.g., humans turning into zombies). Events are meticulously logged, providing a detailed narrative
+of the simulation's evolution.
+
+Designed to run over a set period, the simulation measures various metrics such as resource distribution and encounter
+outcomes, culminating in a dataset that reflects the dynamics of this virtual ecosystem.
+
+"""
+#########################################################
+
 import random
 
 #==================================================================
@@ -67,12 +87,12 @@ class Being:
         self.path = []
 
     def move(self, dx, dy, grid):
-        # Ensure the being stays within the grid
+        # make surebeing stays within the grid
         self.x = max(0, min(self.x + dx, grid.width - 1))
         self.y = max(0, min(self.y + dy, grid.height - 1))
         log_instance = Log()
         details = f"moved to ({dx}, {dy})"
-        # Example of logging a movement event
+        # logging a movement
         log_instance.add_record(Record(epoch=Epoch.get_current_epoch(),
                                        day=DayTracker.get_current_day(),
                                        being_id=f"{self.id}",
@@ -90,17 +110,17 @@ class Being:
 
     def encounter_as_zombie(self, other):
         if not other.is_zombie:  # If the other being is not a zombie
-            # The chance of getting infected is based on the human's ability to escape or win
+            # The chance of getting infected is based on the human's ability to escape or win, see weights below
             is_infected = random.choices(
                 [True, False],  # True for infected, False for not infected
-                weights=[2, other.esc_xp + other.win_xp]  # Weights: infection vs. escape or win
-            )[0]  # [0] to get the first item from the list
+                weights=[2, other.esc_xp + other.win_xp]  # Weights: infection vs. escape or win, this similar structure is used throughout
+            )[0]
 
             if is_infected:
                 # Human gets infected and becomes a zombie
                 other.is_zombie = True
                 self.lifespan_z += 3  # The infecting zombie's lifespan increases
-                self.hz_kd += 1  # Increment the count of humans killed as a zombie- take a look at this for correct logic
+                self.hz_kd += 1  # Increment the count of humans killed as a zombie- MAY NEED CORRECTION?
                 log_instance = Log()
                 details = f"contacted {other.id} @ {self.x, self.y}"
                 log_instance.add_record(
@@ -111,7 +131,7 @@ class Being:
                            description=details))
 
     def encounter_zombie(self, zombie):
-        # Decide the outcome: escape, win, or get infected
+        # Escape, Win (kill), or be turned into zombie.
         outcome = random.choices(['escape', 'win', 'infected'], weights=[self.esc_xp + 1, self.win_xp + 1, 2])[0]
         self_id = f"{self.id}"
         if outcome == 'escape':
@@ -141,7 +161,7 @@ class Being:
                        description=details))
         else:  # infected
             self.is_zombie = True
-            self.lifespan_z = 10  # Reset lifespan as a zombie
+            self.lifespan_z = 10  # Reset lifespan zombie
             log_instance = Log()
             details = f"contacted Z-{zombie.id} @ {self.x, self.y}"
             log_instance.add_record(
@@ -156,8 +176,8 @@ class Being:
     def encounter_human(self, other_human):
         # Decide the outcome: love or war, ensuring weights are never zero by adding a small value
         outcome = random.choices(['love', 'war'], weights=[self.love_xp + 0.1, self.war_xp + 0.1])[0]
-        self_id = f"{self.id}"
-        other_human_id = f"{other_human.id}"
+        # self_id = f"{self.id}"
+        # other_human_id = f"{other_human.id}"
         if outcome == 'love':
             self.love_xp += 1  # Gain love experience
             other_human.love_xp += 1
@@ -266,7 +286,7 @@ class Grid:
         self.beings.append(being)
 
     def move_being(self, being):
-        dx = random.choice([-1, 0, 1])  # Randomly choose a direction
+        dx = random.choice([-1, 0, 1])  # Randomly choose a direction, this will change later based on available resources
         dy = random.choice([-1, 0, 1])
         new_x = max(0, min(being.x + dx, self.width - 1))
         new_y = max(0, min(being.y + dy, self.height - 1))
@@ -278,7 +298,7 @@ class Grid:
             being.move(dx, dy, grid=self)
 
     def simulate_day(self):
-        for being in list(self.beings):  # list copy to avoid issues while modifying the list
+        for being in list(self.beings):  # using a list copy here to avoid issues while modifying the list
             if being.is_active:
                 self.move_being(being)
                 for other in list(self.beings):
@@ -328,11 +348,11 @@ class Log:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(Log, cls).__new__(cls)
-            cls._instance.records = []  # Initialize records only once here
+            cls._instance.records = []  # Initialize records only once
         return cls._instance
 
     def __init__(self):
-        if not hasattr(self, 'records'):  # Ensure that 'records' is only initialized once
+        if not hasattr(self, 'records'):  # Ensures 'records' is only initialized once
             self.records = []
 
     def add_record(self, record):
