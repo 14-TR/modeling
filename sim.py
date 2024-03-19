@@ -18,6 +18,7 @@ capturing detailed records of the simulation's events.
 #########################################################
 
 from classes import Being, Grid, DayTracker, Log
+from surface_noise import generate_noise
 import pandas as pd
 import random
 
@@ -37,20 +38,24 @@ def calculate_metrics(grid, attribute_name):
 
     return max_value, min_value, avg_value, n_value
 
-def run_simulation(num_days, num_humans, num_zombies):
+def run_simulation(num_days, num_humans, num_zombies, surf):
 
-    grid = Grid(width=20, height=20)  # will be added to single point adjustment function later
+    grid = Grid(width=100, height=100)  # will be added to single point adjustment function later
+
+    grid.append_surface(surf)
 
     # Add humans
     for _ in range(num_humans):
         x, y = random.randint(0, grid.width - 1), random.randint(0, grid.height - 1)
-        human = Being(resources=random.randint(1, 10), x=x, y=y)
+        z = grid.get_elev_at(x, y)
+        human = Being(resources=random.randint(1, 10), x=x, y=y, z=z)
         grid.add_being(human)
 
     # Add zombies
     for _ in range(num_zombies):
         x, y = random.randint(0, grid.width - 1), random.randint(0, grid.height - 1)
-        zombie = Being(resources=random.randint(1, 10), x=x, y=y, is_zombie=True)
+        z = grid.get_elev_at(x, y)
+        zombie = Being(resources=random.randint(1, 10), x=x, y=y, z=z, is_zombie=True)
         grid.add_being(zombie)
 
     days_until_all_zombies = None
@@ -115,7 +120,10 @@ def write_log_to_dataframe():
             'Day': record.day,
             'Being ID': record.being_id,
             'Event Type': record.event_type,
-            'Description': record.description
+            'Description': record.description,
+            'X': record.x,
+            'Y': record.y,
+            'Z': record.z
         }
         for record in log_instance.records
     ]

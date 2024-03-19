@@ -1,4 +1,4 @@
-
+# DEPRECATED
 class Record:
     def __init__(self, being_id, event_type, description):
         self.epoch = Epoch.get_current_epoch()

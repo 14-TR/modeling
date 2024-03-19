@@ -19,6 +19,7 @@ outcomes, culminating in a dataset that reflects the dynamics of this virtual ec
 #########################################################
 
 import random
+from surface_noise import generate_noise
 
 #==================================================================
 class DayTracker:
@@ -64,11 +65,12 @@ class Epoch:
 class Being:
     last_id = 0
 
-    def __init__(self, x, y, resources, is_zombie=False, esc_xp=0, win_xp=0, love_xp=0, war_xp=0, lifespan_z=10, lifespan_h=0):
+    def __init__(self, x, y, z, resources, is_zombie=False, esc_xp=0, win_xp=0, love_xp=0, war_xp=0, lifespan_z=10, lifespan_h=0):
         Being.last_id += 1
         self.id = Being.last_id
         self.x = x
         self.y = y
+        self.z = z
         self.lifespan_h = lifespan_h
         self.resources = resources # relevant only for humans
         self.is_zombie = is_zombie
@@ -87,17 +89,40 @@ class Being:
         self.path = []
 
     def move(self, dx, dy, grid):
-        # make surebeing stays within the grid
-        self.x = max(0, min(self.x + dx, grid.width - 1))
-        self.y = max(0, min(self.y + dy, grid.height - 1))
-        log_instance = Log()
-        details = f"moved to ({dx}, {dy})"
-        # logging a movement
-        log_instance.add_record(Record(epoch=Epoch.get_current_epoch(),
-                                       day=DayTracker.get_current_day(),
-                                       being_id=f"{self.id}",
-                                       event_type="MOV",
-                                       description=details))
+        new_x = max(0, min(self.x + dx, grid.width - 1))
+        new_y = max(0, min(self.y + dy, grid.height - 1))
+        current_z = grid.get_elev_at(self.x, self.y)
+        new_z = grid.get_elev_at(new_x, new_y)
+
+        if not self.is_zombie:
+            # Human: Increase resource consumption if moving uphill
+            if new_z > current_z:
+                self.resources -= (new_z - current_z)  # Adjust this formula as needed
+            self.resources -= 0.5  # Standard movement cost for humans
+        else:
+            # Zombie: Decrease lifespan with each move
+            self.lifespan_z -= 1
+
+        # Update being's position if it has enough resources/lifespan
+        if (not self.is_zombie and self.resources > 0) or (self.is_zombie and self.lifespan_z > 0):
+            self.x = new_x
+            self.y = new_y
+            self.z = new_z
+
+            log_instance = Log()
+
+            log_instance.add_record(
+                Record(epoch=Epoch.get_current_epoch(),
+                       day=DayTracker.get_current_day(),
+                       being_id=f"{self.id}",
+                       event_type="MOV",
+                       description="_",
+                       x=self.x,
+                       y=self.y,
+                       z=self.z)
+            )
+
+        # Additional logic if the being can't move (e.g., not enough resources)
 
     def encounter(self, other):
         if self.is_zombie:
@@ -122,13 +147,17 @@ class Being:
                 self.lifespan_z += 3  # The infecting zombie's lifespan increases
                 self.hz_kd += 1  # Increment the count of humans killed as a zombie- MAY NEED CORRECTION?
                 log_instance = Log()
-                details = f"contacted {other.id} @ {self.x, self.y}"
+                details = f"{other.id}"
                 log_instance.add_record(
                     Record(epoch=Epoch.get_current_epoch(),
                            day=DayTracker.get_current_day(),
                            being_id=f"{self.id}",
                            event_type="INF",
-                           description=details))
+                           description=details,
+                           x=self.x,
+                           y=self.y,
+                           z=self.z)
+                )
 
     def encounter_zombie(self, zombie):
         # Escape, Win (kill), or be turned into zombie.
@@ -138,13 +167,16 @@ class Being:
             self.esc_xp += 1  # Gain escape experience
             self.z_enc += 1
             log_instance = Log()
-            details = f"contacted {zombie.id} @ {self.x, self.y}"
             log_instance.add_record(
                 Record(epoch=Epoch.get_current_epoch(),
                        day=DayTracker.get_current_day(),
-                       being_id=f"{self.id}",
+                       being_id=self.id,
                        event_type="ESC",
-                       description=details))
+                       description=zombie.id,
+                       x=self.x,
+                       y=self.y,
+                       z=self.z)
+            )
         elif outcome == 'win':
             self.win_xp += 1  # Gain win experience
             self.resources += zombie.resources  # Gain a small amount of resources
@@ -152,24 +184,30 @@ class Being:
             zombie.is_active = False
             self.zh_kd += 1
             log_instance = Log()
-            details = f"contacted {zombie.id} @ {self.x, self.y}"
             log_instance.add_record(
                 Record(epoch=Epoch.get_current_epoch(),
                        day=DayTracker.get_current_day(),
-                       being_id=f"{self.id}",
+                       being_id=self.id,
                        event_type="WIN",
-                       description=details))
+                       description=zombie.id,
+                       x=self.x,
+                       y=self.y,
+                       z=self.z)
+            )
         else:  # infected
             self.is_zombie = True
             self.lifespan_z = 10  # Reset lifespan zombie
             log_instance = Log()
-            details = f"contacted Z-{zombie.id} @ {self.x, self.y}"
             log_instance.add_record(
                 Record(epoch=Epoch.get_current_epoch(),
                        day=DayTracker.get_current_day(),
-                       being_id=f"{self.id}",
+                       being_id=zombie.id,
                        event_type="INF",
-                       description=details))
+                       description=self.id,
+                       x=self.x,
+                       y=self.y,
+                       z=self.z)
+            )
 
         self.z_enc += 1
 
@@ -185,13 +223,16 @@ class Being:
             self.resources = other_human.resources = avg_resources  # Even out resources
             self.h_enc += 1
             log_instance = Log()
-            details = f"contacted {other_human.id} @ {self.x, self.y}"
             log_instance.add_record(
                 Record(epoch=Epoch.get_current_epoch(),
                        day=DayTracker.get_current_day(),
-                       being_id=f"{self.id}",
+                       being_id=self.id,
                        event_type="LUV",
-                       description=details))
+                       description=other_human.id,
+                       x=self.x,
+                       y=self.y,
+                       z=self.z)
+            )
 
         else:
             if self.war_xp > other_human.war_xp:
@@ -202,13 +243,16 @@ class Being:
                 self.hh_kd += 1
                 self.h_enc += 1
                 log_instance = Log()
-                details = f"contacted {other_human.id} @ {self.x, self.y}"
                 log_instance.add_record(
                     Record(epoch=Epoch.get_current_epoch(),
                            day=DayTracker.get_current_day(),
-                           being_id=f"{self.id}",
+                           being_id=self.id,
                            event_type="WAR",
-                           description=details))
+                           description=other_human.id,
+                           x=self.x,
+                           y=self.y,
+                           z=self.z)
+                )
             else:
                 if self.war_xp == other_human.war_xp:
                     theft_outcome = random.choices(['theft','war'], weights=[self.theft + 0.1, self.war_xp + 0.1])[0]
@@ -218,23 +262,29 @@ class Being:
                         self.resources += amount
                         other_human.resources -= amount
                         log_instance = Log()
-                        details = f"contacted {other_human.id} @ {self.x, self.y}"
                         log_instance.add_record(
                             Record(epoch=Epoch.get_current_epoch(),
                                    day=DayTracker.get_current_day(),
-                                   being_id=f"{self.id}",
+                                   being_id=self.id,
                                    event_type="STL",
-                                   description=details))
+                                   description=other_human.id,
+                                   x=self.x,
+                                   y=self.y,
+                                   z=self.z)
+                        )
                         if other_human.theft > 1:
                             other_human.theft -= 1
                             log_instance = Log()
-                            details = f"contacted {self.id} @ {other_human.x, other_human.y}"
                             log_instance.add_record(
                                 Record(epoch=Epoch.get_current_epoch(),
                                        day=DayTracker.get_current_day(),
-                                       being_id=f"{other_human.id}",
+                                       being_id=other_human.id,
                                        event_type="ROB",
-                                       description=details))
+                                       description=self.id,
+                                       x=other_human.x,
+                                       y=other_human.y,
+                                       z=self.z)
+                            )
                         else:
                             other_human.theft = 0
                     else:
@@ -245,13 +295,16 @@ class Being:
                         self.hh_kd += 1
                         self.h_enc += 1
                         log_instance = Log()
-                        details = f"contacted {other_human.id} @ {self.x, self.y}"
                         log_instance.add_record(
                             Record(epoch=Epoch.get_current_epoch(),
                                    day=DayTracker.get_current_day(),
-                                   being_id=f"{self.id}",
+                                   being_id=self.id,
                                    event_type="WAR",
-                                   description=details))
+                                   description=other_human.id,
+                                   x=self.x,
+                                   y=self.y,
+                                   z=self.z)
+                        )
 
     def update_status(self):
         if self.is_zombie:
@@ -269,6 +322,8 @@ class Being:
                 # print(f"Being {self.id} (human) starved.")
 
 #-----------------------------------------------------------------
+
+
 class Grid:
     def __init__(self, width, height):
         self.width = width
@@ -276,6 +331,7 @@ class Grid:
         self.beings = []
         self.rmv_beings = 0
         self.occupied_positions = set()
+        self.surface = None
 
     def add_being(self, being):
         while (being.x, being.y) in self.occupied_positions:  # Check if position is occupied
@@ -286,16 +342,24 @@ class Grid:
         self.beings.append(being)
 
     def move_being(self, being):
-        dx = random.choice([-1, 0, 1])  # Randomly choose a direction, this will change later based on available resources
-        dy = random.choice([-1, 0, 1])
-        new_x = max(0, min(being.x + dx, self.width - 1))
-        new_y = max(0, min(being.y + dy, self.height - 1))
+        movement_options = [-1, 0, 1]
+        dx = random.choice(movement_options)
+        dy = random.choice(movement_options)
 
-        # Check if the new position is occupied
-        if (new_x, new_y) not in self.occupied_positions:
-            self.occupied_positions.remove((being.x, being.y))
-            self.occupied_positions.add((new_x, new_y))
-            being.move(dx, dy, grid=self)
+        # Store the current position
+        current_x, current_y = being.x, being.y
+
+        # Being attempts to move (the move method will handle resource/lifespan checks)
+        being.move(dx, dy, self)
+
+        # If the move was successful (the being's position changed), update occupied positions
+        if (current_x, current_y) != (being.x, being.y):
+            # Remove the old position if it exists in the set
+            if (current_x, current_y) in self.occupied_positions:
+                self.occupied_positions.remove((current_x, current_y))
+
+            # Add the new position
+            self.occupied_positions.add((being.x, being.y))
 
     def simulate_day(self):
         for being in list(self.beings):  # using a list copy here to avoid issues while modifying the list
@@ -315,29 +379,45 @@ class Grid:
         # add to the number of beings removed the number self.beings list gains
         self.occupied_positions = {(being.x, being.y) for being in self.beings}
 
-
     def count_humans_and_zombies(self):
         humans = sum(1 for being in self.beings if not being.is_zombie and being.is_active)
         zombies = sum(1 for being in self.beings if being.is_zombie and being.is_active)
         return humans, zombies
 
+    # append the surface generated in surface_noise.py to the grid
+    def append_surface(self, surface):
+        self.surface = surface
+
+    def get_elev_at(self, x, y):
+        if self.surface is None:
+            return 0
+        else:
+            return self.surface[x, y]
+
+
+
+
 # -----------------------------------------------------------------------------------------
 
 
 class Record:
-    def __init__(self, epoch, day, being_id, event_type, description):
+    def __init__(self, epoch, day, being_id, event_type, description, x, y, z):
         self.epoch = epoch
         self.day = day
         self.being_id = being_id
         self.event_type = event_type
         self.description = description
+        self.x = x
+        self.y = y
+        self.z = z
 
     def __repr__(self):
         return (f"Epoch: {self.epoch}, "
                 f"Day {self.day}, "
                 f"ID:{self.being_id}, "
                 f"Type: {self.event_type}, "
-                f"Desc: {self.description}")
+                f"Desc: {self.description},"
+                f"Z: {self.z}")
 
 #------------------------------------------------------------------
 
