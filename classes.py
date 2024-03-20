@@ -22,6 +22,8 @@ import random
 from surface_noise import generate_noise
 
 #==================================================================
+
+
 class DayTracker:
     current_day = 1
 
@@ -97,7 +99,7 @@ class Being:
         if not self.is_zombie:
             # Human: Increase resource consumption if moving uphill
             if new_z > current_z:
-                self.resources -= (new_z - current_z)  # Adjust this formula as needed
+                self.resources -= ((new_z - current_z) + .5) # Adjust this formula as needed
             self.resources -= 0.5  # Standard movement cost for humans
         else:
             # Zombie: Decrease lifespan with each move
@@ -138,7 +140,7 @@ class Being:
             # The chance of getting infected is based on the human's ability to escape or win, see weights below
             is_infected = random.choices(
                 [True, False],  # True for infected, False for not infected
-                weights=[2, other.esc_xp + other.win_xp]  # Weights: infection vs. escape or win, this similar structure is used throughout
+                weights=[.5, other.esc_xp + other.win_xp]  # Weights: infection vs. escape or win, this similar structure is used throughout
             )[0]
 
             if is_infected:
@@ -178,7 +180,7 @@ class Being:
                        z=self.z)
             )
         elif outcome == 'win':
-            self.win_xp += 1  # Gain win experience
+            self.win_xp += random.randint(0,(zombie.win_xp+1))  # Gain win experience
             self.resources += zombie.resources  # Gain a small amount of resources
             # kill the zombie
             zombie.is_active = False
@@ -217,7 +219,7 @@ class Being:
         # self_id = f"{self.id}"
         # other_human_id = f"{other_human.id}"
         if outcome == 'love':
-            self.love_xp += 1  # Gain love experience
+            self.love_xp += random.randint(0,(other_human.love_xp+1))  # Gain love experience
             other_human.love_xp += 1
             avg_resources = (self.resources + other_human.resources) / 2
             self.resources = other_human.resources = avg_resources  # Even out resources
@@ -236,7 +238,7 @@ class Being:
 
         else:
             if self.war_xp > other_human.war_xp:
-                self.war_xp += 1  # Gain war experience
+                self.war_xp += random.randint(0,(other_human.war_xp+1))  # Gain war experience
                 self.resources += other_human.resources  # Take all resources from the defeated
                 other_human.resources = 0  # The defeated loses all resources
                 other_human.is_zombie = True  # The defeated becomes a zombie
@@ -258,7 +260,7 @@ class Being:
                     theft_outcome = random.choices(['theft','war'], weights=[self.theft + 0.1, self.war_xp + 0.1])[0]
                     if theft_outcome == 'theft':
                         self.theft += 1
-                        amount = random.randint(0,round(other_human.resources))
+                        amount = random.randint(0, round(other_human.resources+1))
                         self.resources += amount
                         other_human.resources -= amount
                         log_instance = Log()
@@ -287,8 +289,10 @@ class Being:
                             )
                         else:
                             other_human.theft = 0
+                            other_human.is_zombie = True
+
                     else:
-                        self.war_xp += 1  # Gain war experience
+                        self.war_xp += random.randint(0,(other_human.war_xp + 1))  # Gain war experience
                         self.resources += other_human.resources  # Take all resources from the defeated
                         other_human.resources = 0  # The defeated loses all resources
                         other_human.is_zombie = True  # The defeated becomes a zombie
@@ -342,9 +346,14 @@ class Grid:
         self.beings.append(being)
 
     def move_being(self, being):
-        movement_options = [-1, 0, 1]
-        dx = random.choice(movement_options)
-        dy = random.choice(movement_options)
+        h_move = [-2, -1, 0, 1, 2]
+        z_move = [-1, 0, 1]
+        if not being.is_zombie:
+            dx = random.choice(z_move)
+            dy = random.choice(z_move)
+        else:
+            dx = random.choice(h_move)
+            dy = random.choice(h_move)
 
         # Store the current position
         current_x, current_y = being.x, being.y

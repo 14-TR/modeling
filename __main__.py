@@ -25,39 +25,59 @@ from classes import Epoch, DayTracker, Log
 from mapping import collect_event_locations, generate_heatmap
 from surface_noise import generate_noise
 import pandas as pd
-import matplotlib.pyplot as plt  # For generating heatmaps
+import matplotlib.pyplot as plt
+import os, datetime
+from config import W, H
+
+eps = 10000
+timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+output_folder = f"C:\\Users\\TR\\Desktop\\z\\GIT\\modeling\\sims\\sim__{timestamp}__N{eps}"
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
 
 results = []
 Epoch.epoch = 0
-surf = generate_noise(100, 100, 0.1, 0.2, 0)
-for _ in range(384): # 384 based on infinite sample
+surf = generate_noise(W, H, 0.025, 0.025, 4)
+for _ in range(eps): # 384 based on infinite sample
     Epoch.increment_sim()
     DayTracker.reset()  # Reset the day tracker at the start of each simulation
-    simulation_result = run_simulation(365, 50, 5, surf)  # Run
+    simulation_result = run_simulation(365, 100, 5, surf)  # Run
     results.append(simulation_result)
 
+results_csv_path = os.path.join(output_folder, 'simulation_results.csv')
+log_csv_path = os.path.join(output_folder, 'simulation_log.csv')
 
-#outputs
 # results_csv_path = r'C:\Users\TR\Desktop\z\GIT\modeling\metrics_v1\simulation_results.csv'
-results_csv_path = r"C:\Users\tingram\Desktop\Captains Log\UWYO\GIT\modeling\metrics_v1\simulation_results.csv"
+# results_csv_path = r"C:\Users\tingram\Desktop\Captains Log\UWYO\GIT\modeling\metrics_v1\simulation_results.csv"
 met_df = pd.DataFrame(results)
 met_df.to_csv(results_csv_path, index=False)
 
 log_instance = Log()
 
 # log_csv_path = r'C:\Users\TR\Desktop\z\GIT\modeling\metrics_v1\simulation_log.csv'
-log_csv_path = r"C:\Users\tingram\Desktop\Captains Log\UWYO\GIT\modeling\metrics_v1\simulation_log.csv"
+# log_csv_path = r"C:\Users\tingram\Desktop\Captains Log\UWYO\GIT\modeling\metrics_v1\simulation_log.csv"
 log_df = write_log_to_dataframe()
 log_df.to_csv(log_csv_path, index=False)
 
-for event_type in ['LUV', 'STL', 'WIN', 'INF']:  # Adjust event types as needed
+# Plotting the elevation surface (2D Perlin Noise)
+plt.imshow(surf, cmap='terrain')
+plt.colorbar()
+plt.title('2D Perlin Noise')
+
+# Save the elevation surface plot to the new folder
+elevation_surface_filename = "elevation_surface.png"
+plt.savefig(os.path.join(output_folder, elevation_surface_filename))
+
+plt.clf()
+
+for event_type in ['LUV', 'STL', 'WIN', 'INF', 'WAR', 'MOV']:
     locations = collect_event_locations(event_type)
-
-    plt.figure(figsize=(10, 8))  # Create a new figure for the heatmap
-    img = generate_heatmap(locations)  # Generate the heatmap
+    plt.figure(figsize=(10, 8))
+    img = generate_heatmap(locations)
     plt.title(f"Cumulative Heatmap for {event_type} Events")
-    plt.colorbar(img)  # Use the returned AxesImage object here
-    plt.show()  # Display the figure with the heatmap and color bar
+    plt.colorbar(img)
 
-
-
+    # Save each heatmap to the new folder
+    heatmap_filename = f"{event_type}_heatmap.png"
+    plt.savefig(os.path.join(output_folder, heatmap_filename))
+    plt.clf()  # Clear the current figure after saving each heatmap

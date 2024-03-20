@@ -28,9 +28,9 @@ def generate_noise(w, h, vi, vj, z):
 # for i in range(w):
 #     for j in range(h):
 #         grid[i,j] = noise.noise(i*0.1, j*0.2, 0)
-
-# grid = generate_noise(100, 100, 0.1, 0.2, 0)
-
+#
+# grid = generate_noise(100, 100, 0.025, 0.025, 4)
+#
 # # plot grid
 # plt.imshow(grid, cmap='terrain')
 # plt.colorbar()

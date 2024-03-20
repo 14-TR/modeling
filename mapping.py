@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from classes import Log
+from config import W
 
 
 def collect_event_locations(event_type):
@@ -11,14 +12,14 @@ def collect_event_locations(event_type):
 
 
 def generate_heatmap(locations):
-    grid_size = 100  # Assuming your grid is of a fixed size
+    grid_size = W  # Assuming your grid is of a fixed size
     heatmap_matrix = np.zeros((grid_size, grid_size))
 
     for x, y in locations:
         heatmap_matrix[x, y] += 1  # Increment count for the location
 
     # Create and return the heatmap image, don't show it yet
-    img = plt.imshow(heatmap_matrix, cmap='hot', interpolation='nearest')
+    img = plt.imshow(heatmap_matrix, cmap='viridis', interpolation='lanczos')
     return img
 
 

@@ -18,6 +18,7 @@ capturing detailed records of the simulation's events.
 #########################################################
 
 from classes import Being, Grid, DayTracker, Log
+from config import W, H
 from surface_noise import generate_noise
 import pandas as pd
 import random
@@ -40,7 +41,7 @@ def calculate_metrics(grid, attribute_name):
 
 def run_simulation(num_days, num_humans, num_zombies, surf):
 
-    grid = Grid(width=100, height=100)  # will be added to single point adjustment function later
+    grid = Grid(width=W, height=H)  # will be added to single point adjustment function later
 
     grid.append_surface(surf)
 
@@ -48,7 +49,7 @@ def run_simulation(num_days, num_humans, num_zombies, surf):
     for _ in range(num_humans):
         x, y = random.randint(0, grid.width - 1), random.randint(0, grid.height - 1)
         z = grid.get_elev_at(x, y)
-        human = Being(resources=random.randint(1, 10), x=x, y=y, z=z)
+        human = Being(resources=random.randint(10, 20), x=x, y=y, z=z)
         grid.add_being(human)
 
     # Add zombies
