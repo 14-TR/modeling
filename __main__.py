@@ -22,26 +22,27 @@ examination of the simulated pandemic dynamics and actor behaviors.
 # imports
 from sim import run_simulation, write_log_to_dataframe
 from classes import Epoch, DayTracker, Log
-from mapping import collect_event_locations, generate_heatmap
+from mapping import collect_event_locations, generate_heatmap, select_cells
 from surface_noise import generate_noise
 import pandas as pd
 import matplotlib.pyplot as plt
 import os, datetime
-from config import W, H
+from config import W, H, eps, vi, vj, z, num_humans, num_zombies, days
 
-eps = 10000
+
 timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-output_folder = f"C:\\Users\\TR\\Desktop\\z\\GIT\\modeling\\sims\\sim__{timestamp}__N{eps}"
+# output_folder = f"C:\\Users\\TR\\Desktop\\z\\GIT\\modeling\\sims\\sim__{timestamp}__N{eps}"
+output_folder = f"C:\\Users\\tingram\\Desktop\\Captains Log\\UWYO\\GIT\\sims\\sim__{timestamp}__N{eps}"
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
 results = []
 Epoch.epoch = 0
-surf = generate_noise(W, H, 0.025, 0.025, 4)
+surf = generate_noise(W, H, vi, vj, z)
 for _ in range(eps): # 384 based on infinite sample
     Epoch.increment_sim()
     DayTracker.reset()  # Reset the day tracker at the start of each simulation
-    simulation_result = run_simulation(365, 100, 5, surf)  # Run
+    simulation_result = run_simulation(days, num_humans, num_zombies, surf)  # Run
     results.append(simulation_result)
 
 results_csv_path = os.path.join(output_folder, 'simulation_results.csv')
@@ -81,3 +82,33 @@ for event_type in ['LUV', 'STL', 'WIN', 'INF', 'WAR', 'MOV']:
     heatmap_filename = f"{event_type}_heatmap.png"
     plt.savefig(os.path.join(output_folder, heatmap_filename))
     plt.clf()  # Clear the current figure after saving each heatmap
+
+# print the movement heatmaps for each elvation breaking the range of all elevations into 5 classes
+# and plotting the movement heatmaps for each class
+#take the max elevation and min elevation and segment into 5 classes
+elevations = surf
+max_elev = elevations.max()
+min_elev = elevations.min()
+elev_range = max_elev - min_elev
+elev_class = elev_range / 5
+elevations = elevations.tolist()
+elevation_classes = []
+for i in range(W):
+    elevation_classes.append([])
+    for j in range(W):
+        elevation_classes[i].append(int(elevations[i][j] / elev_class))
+
+for i in range(5):
+    cells = select_cells(elevation_classes, elevation_classes, i)
+    plt.figure(figsize=(10, 8))
+    img = generate_heatmap(cells)
+    plt.title(f"Cumulative Heatmap for Movement in Elevation Class {i}")
+    plt.colorbar(img)
+
+    # Save each heatmap to the new folder
+    heatmap_filename = f"elevation_class_{i}_heatmap.png"
+    plt.savefig(os.path.join(output_folder, heatmap_filename))
+    plt.clf()  # Clear the current figure after saving each heatmap
+
+#print class values
+print(min_elev, max_elev, elev_range, elev_class)

@@ -23,4 +23,13 @@ def generate_heatmap(locations):
     return img
 
 
+# select Movement heat map cells by corresponding elevation cells of a particular value
+def select_cells(elevation, movement, value):
+    cells = []
+    for i in range(W):
+        for j in range(W):
+            if elevation[i][j] == value:
+                cells.append((i, j))
+    return cells
+
 
