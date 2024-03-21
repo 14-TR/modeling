@@ -90,11 +90,32 @@ class Being:
         self.h_enc = 0
         self.path = []
 
-    def move(self, dx, dy, grid):
-        new_x = max(0, min(self.x + dx, grid.width - 1))
-        new_y = max(0, min(self.y + dy, grid.height - 1))
-        current_z = grid.get_elev_at(self.x, self.y)
-        new_z = grid.get_elev_at(new_x, new_y)
+    def move_towards_resource_point(self, resource_points):
+        # Find the closest resource point
+        closest_point = min(resource_points, key=lambda point: (point[0] - self.x) ** 2 + (point[1] - self.y) ** 2)
+        dx = closest_point[0] - self.x
+        dy = closest_point[1] - self.y
+
+        # Normalize the movement towards the resource point to ensure it's a single step in the right direction
+        dx = dx // abs(dx) if dx != 0 else 0
+        dy = dy // abs(dy) if dy != 0 else 0
+        return dx, dy
+
+    def move(self, dx, dy, grid, resource_points=set()):
+        if not self.is_zombie and resource_points:
+            # As resources diminish, increase probability of moving towards resource point
+            resource_based_prob = (10 - self.resources) / 10  # Adjust the denominator based on max resources
+            if random.random() < resource_based_prob:
+                dx, dy = self.move_towards_resource_point(resource_points)
+        else:
+            new_x = max(0, min(self.x + dx, grid.width - 1))
+            new_y = max(0, min(self.y + dy, grid.height - 1))
+            current_z = grid.get_elev_at(self.x, self.y)
+            new_z = grid.get_elev_at(new_x, new_y)
+
+            # Collect resources if at a resource point
+        if (self.x, self.y) in resource_points:
+            self.resources = min(self.resources + 10, 10)
 
         # Check if the being is a zombie and if it's moving uphill
         if self.is_zombie:
@@ -119,8 +140,8 @@ class Being:
 
         if not self.is_zombie:
             # Human: Increase resource consumption if moving uphill
-            if new_z > current_z:
-                self.resources -= ((new_z - current_z) + .5)  # Adjust this formula as needed
+            if new_z > self.z:
+                self.resources -= ((new_z - self.z) + .5)  # Adjust this formula as needed
             self.resources -= 0.5  # Standard movement cost for humans
         else:
             # Zombie: Decrease lifespan with each move
@@ -146,7 +167,7 @@ class Being:
                 )
             )
 
-        # Additional logic if the being can't move (e.g., not enough resources)
+        # placeholder logic if the being can't move (e.g., not enough resources)
 
     def encounter(self, other):
         if self.is_zombie:
@@ -354,13 +375,22 @@ class Being:
 # -----------------------------------------------------------------------------------------
 
 class Grid:
-    def __init__(self, width, height):
+    def __init__(self, width, height,resource_points=None):
         self.width = width
         self.height = height
         self.beings = []
         self.rmv_beings = 0
         self.occupied_positions = set()
         self.surface = None
+        self.resource_points = resource_points if resource_points else set()
+
+    def generate_resource_points(self, num_points):
+        points = set()
+        while len(points) < num_points:
+            x = random.randint(0, self.width - 1)
+            y = random.randint(0, self.height - 1)
+            points.add((x, y))
+        return points
 
     def add_being(self, being):
         while (being.x, being.y) in self.occupied_positions:  # Check if position is occupied
@@ -384,7 +414,7 @@ class Grid:
         current_x, current_y = being.x, being.y
 
         # Being attempts to move (the move method will handle resource/lifespan checks)
-        being.move(dx, dy, self)
+        being.move(dx, dy, self, self.resource_points)
 
         # If the move was successful (the being's position changed), update occupied positions
         if (current_x, current_y) != (being.x, being.y):
@@ -428,6 +458,7 @@ class Grid:
         else:
             return self.surface[x, y]
 
+
 # -----------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------
 
@@ -464,7 +495,6 @@ class EncounterRecord:
         self.x = x,
         self.y = y,
         self.z = z
-
 
 
 # -----------------------------------------------------------------------------------------
@@ -533,6 +563,15 @@ class MovementRecord:
         self.end_x = end_x
         self.end_y = end_y
 
+    #get is zombie status
+    def get_is_zombie(self, being_id):
+        for being in self.beings:
+            if being.id == being_id:
+                return being.is_zombie
+        return False
+
+
+
 
 # -----------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------
@@ -552,7 +591,6 @@ class MovementLog:
 
     def get_records_by_day(self, day):
         return [record for record in self.records if record.day == day]
-
 
 # -----------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------

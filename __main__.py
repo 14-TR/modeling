@@ -25,97 +25,132 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from classes import Epoch, DayTracker, Log
+from classes import Epoch, DayTracker, EncounterLog, ResourceLog, MovementLog, Grid
 from config import W, H, eps, vi, vj, z, num_humans, num_zombies, days
-from mapping import collect_event_locations, generate_heatmap
+from mapping import generate_heatmap
+from modeling.analysis import extract_encounter_data, extract_resource_data
 #########################################################
 # imports
-from sim import run_simulation, write_log_to_dataframe, extract_movement_data, select_movements_by_class
+from sim import run_simulation, encounters_to_dataframe, movements_to_dataframe, resources_to_dataframe, \
+    extract_movement_human
 from surface_noise import generate_noise
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-output_folder = f"C:\\Users\\TR\\Desktop\\z\\GIT\\modeling\\sims\\sim__{timestamp}__N{eps}"
-# output_folder = f"C:\\Users\\tingram\\Desktop\\Captains Log\\UWYO\\GIT\\sims\\sim__{timestamp}__N{eps}"
+# output_folder = f"C:\\Users\\TR\\Desktop\\z\\GIT\\modeling\\sims\\sim__{timestamp}__N{eps}"
+output_folder = f"C:\\Users\\tingram\\Desktop\\Captains Log\\UWYO\\GIT\\sims\\sim__{timestamp}__N{eps}"
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
-results = []
-Epoch.epoch = 0
-surf = generate_noise(W, H, vi, vj, z)
-for _ in range(eps):  # 384 based on infinite sample
-    Epoch.increment_sim()
-    DayTracker.reset()  # Reset the day tracker at the start of each simulation
-    simulation_result = run_simulation(days, num_humans, num_zombies, surf)  # Run
-    results.append(simulation_result)
+def main():
+    results = []
+    Epoch.epoch = 0
+    surf = generate_noise(W, H, vi, vj, z)
 
-results_csv_path = os.path.join(output_folder, 'simulation_results.csv')
-log_csv_path = os.path.join(output_folder, 'simulation_log.csv')
+    for _ in range(eps):  # For each simulation epoch
+        Epoch.increment_sim()
+        DayTracker.reset()  # Reset the day tracker
 
-# results_csv_path = r'C:\Users\TR\Desktop\z\GIT\modeling\metrics_v1\simulation_results.csv'
-# results_csv_path = r"C:\Users\tingram\Desktop\Captains Log\UWYO\GIT\modeling\metrics_v1\simulation_results.csv"
-met_df = pd.DataFrame(results)
-met_df.to_csv(results_csv_path, index=False)
+        grid = Grid(width=W, height=H)
+        grid.append_surface(surf)
 
-log_instance = Log()
+        # Generate resource points for this simulation run
+        # Using the instance of Grid to call the method
+        resource_points = grid.generate_resource_points(num_points=4)
 
-# log_csv_path = r'C:\Users\TR\Desktop\z\GIT\modeling\metrics_v1\simulation_log.csv'
-# log_csv_path = r"C:\Users\tingram\Desktop\Captains Log\UWYO\GIT\modeling\metrics_v1\simulation_log.csv"
-log_df = write_log_to_dataframe()
-log_df.to_csv(log_csv_path, index=False)
+        # Run the simulation with the generated surface and resource points
+        simulation_result = run_simulation(days, num_humans, num_zombies, surf, resource_points)
+        results.append(simulation_result)
 
-# Plotting the elevation surface (2D Perlin Noise)
-plt.imshow(surf, cmap='terrain')
-plt.colorbar()
-plt.title('2D Perlin Noise')
-
-# Save the elevation surface plot to the new folder
-elevation_surface_filename = "elevation_surface.png"
-plt.savefig(os.path.join(output_folder, elevation_surface_filename))
-
-plt.clf()
-
-for event_type in ['LUV', 'STL', 'WIN', 'INF', 'WAR', 'MOV']:
-    locations = collect_event_locations(event_type)
-    plt.figure(figsize=(10, 8))
-    img = generate_heatmap(locations)
-    plt.title(f"Cumulative Heatmap for {event_type} Events")
-    plt.colorbar(img)
-
-    # Save each heatmap to the new folder
-    heatmap_filename = f"{event_type}_heatmap.png"
-    plt.savefig(os.path.join(output_folder, heatmap_filename))
-    plt.clf()  # Clear the current figure after saving each heatmap
-
-# print the movement heatmaps for each elvation breaking the range of all elevations into 5 classes
-# and plotting the movement heatmaps for each class
-# take the max elevation and min elevation and segment into 5 classes
+        results_csv_path = os.path.join(output_folder, 'simulation_results.csv')
+        enc_csv_path = os.path.join(output_folder, 'enc_log.csv')
+        mov_csv_path = os.path.join(output_folder, 'mov_log.csv')
+        res_csv_path = os.path.join(output_folder, 'res_log.csv')
 
 
-# Assuming surf is a numpy array
-max_elev = np.max(surf)
-min_elev = np.min(surf)
-elev_range = max_elev - min_elev
-elev_class_interval = elev_range / 5
+        met_df = pd.DataFrame(results)
+        met_df.to_csv(results_csv_path, index=False)
 
-# Classify each cell into an elevation class (0 to 4)
-elevation_classes = np.floor((surf - min_elev) / elev_class_interval).astype(int)
-elevation_classes[elevation_classes == 5] = 4  # Handle the max edge case
+        #logs
+        enc_log_instance = EncounterLog()
+        mov_log_instance = MovementLog()
+        res_log_instance = ResourceLog()
 
-# Extract movement data from logs
-movement_data = extract_movement_data(log_instance)
+        #logs to dfs
+        enc_df = encounters_to_dataframe(enc_log_instance)
+        mov_df = movements_to_dataframe(mov_log_instance)
+        res_df = resources_to_dataframe(res_log_instance)
 
-# Generate and save heatmaps for each elevation class
-for i in range(5):
-    # Select movements for the current elevation class
-    class_movements = select_movements_by_class(movement_data, elevation_classes, i)
+        #log dfs to csv
+        enc_df.to_csv(enc_csv_path, index=False)
+        mov_df.to_csv(mov_csv_path, index=False)
+        res_df.to_csv(res_csv_path, index=False)
 
-    # Generate heatmap
-    plt.figure(figsize=(10, 8))
-    img = generate_heatmap(class_movements)  # Ensure your generate_heatmap function can handle (x, y) tuples
-    plt.title(f"Cumulative Heatmap for Movement in Elevation Class {i}")
-    plt.colorbar(img)
+        # Plotting the elevation surface (2D Perlin Noise)
+        plt.imshow(surf, cmap='terrain')
+        plt.colorbar()
+        plt.title('2D Perlin Noise')
 
-    # Save the heatmap
-    heatmap_filename = f"elevation_class_{i}_heatmap.png"
-    plt.savefig(os.path.join(output_folder, heatmap_filename))
-    plt.clf()  # Clear the figure after saving
+        # Save the elevation surface plot to the new folder
+        elevation_surface_filename = "elevation_surface.png"
+        plt.savefig(os.path.join(output_folder, elevation_surface_filename))
+
+        #map clustering encounters by type
+        encounter_counts = enc_df['INF'].value_counts()
+        encounter_counts.plot(kind='bar')
+        plt.xlabel('Encounter Type')
+        plt.ylabel('Count')
+        plt.title('Encounter Types Distribution')
+        encounter_counts_filename = "encounter_counts.png"
+        plt.savefig(os.path.join(output_folder, encounter_counts_filename))
+
+
+        # #--------------------------------------------
+        # #--------------------------------------------
+        # #heatmap clustering encounters by type "INF",   "ESC",   "WIN",   "WAR",   "LUV", "STL
+        # inf_encounters = extract_encounter_data(enc_log_instance, 'INF')
+        # inf_heatmap = generate_heatmap(inf_encounters, x_attr='x', y_attr='y')
+        # inf_heatmap_filename = "inf_heatmap.png"
+        # plt.savefig(os.path.join(output_folder, inf_heatmap_filename))
+        #
+        # esc_encounters = extract_encounter_data(enc_log_instance, 'ESC')
+        # esc_heatmap = generate_heatmap(esc_encounters, x_attr='x', y_attr='y')
+        # esc_heatmap_filename = "esc_heatmap.png"
+        # plt.savefig(os.path.join(output_folder, esc_heatmap_filename))
+        #
+        # win_encounters = extract_encounter_data(enc_log_instance, 'WIN')
+        # win_heatmap = generate_heatmap(win_encounters, x_attr='x', y_attr='y')
+        # win_heatmap_filename = "win_heatmap.png"
+        # plt.savefig(os.path.join(output_folder, win_heatmap_filename))
+        #
+        # war_encounters = extract_encounter_data(enc_log_instance, 'WAR')
+        # war_heatmap = generate_heatmap(war_encounters, x_attr='x', y_attr='y')
+        # war_heatmap_filename = "war_heatmap.png"
+        # plt.savefig(os.path.join(output_folder, war_heatmap_filename))
+        #
+        # luv_encounters = extract_encounter_data(enc_log_instance, 'LUV')
+        # luv_heatmap = generate_heatmap(luv_encounters, x_attr='x', y_attr='y')
+        # luv_heatmap_filename = "luv_heatmap.png"
+        # plt.savefig(os.path.join(output_folder, luv_heatmap_filename))
+        #
+        # stl_encounters = extract_encounter_data(enc_log_instance, 'STL')
+        # stl_heatmap = generate_heatmap(stl_encounters, x_attr='x', y_attr='y')
+        # stl_heatmap_filename = "stl_heatmap.png"
+        # plt.savefig(os.path.join(output_folder, stl_heatmap_filename))
+        # #--------------------------------------------
+        # #--------------------------------------------
+        #
+        #
+        # #make a map of all human movements
+        # human_movements = extract_movement_human(mov_log_instance)
+        # human_movement_heatmap = generate_heatmap(human_movements)
+        # human_movement_heatmap_filename = "human_movement_heatmap.png"
+        # plt.savefig(os.path.join(output_folder, human_movement_heatmap_filename))
+
+        #make a map of all zombie movements
+        zombie_movements = extract_movement_human(mov_log_instance)
+        zombie_movement_heatmap = generate_heatmap(zombie_movements)
+        zombie_movement_heatmap_filename = "zombie_movement_heatmap.png"
+        plt.savefig(os.path.join(output_folder, zombie_movement_heatmap_filename))
+
+if __name__ == "__main__":
+    main()

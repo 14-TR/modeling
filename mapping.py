@@ -1,25 +1,32 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from classes import Log
-from config import W
+from classes import EncounterLog
+from config import W, H
 
 
-def collect_event_locations(event_type):
-    log_instance = Log()  # Assuming you have a Log instance
-    event_records = log_instance.get_records_by_type(event_type)
+def collect_enc_locations(event_type):
+    enc_log_instance = EncounterLog()  # Assuming you have a Log instance
+    event_records = enc_log_instance.get_records_by_type(event_type)
     locations = [(record.x, record.y) for record in event_records]  # Collecting locations from records
     return locations
 
 
-def generate_heatmap(locations):
-    grid_size = W  # Assuming your grid is of a fixed size
-    heatmap_matrix = np.zeros((grid_size, grid_size))
+def generate_heatmap(locations, x_attr='x', y_attr='y'):
+    # Initialize an empty grid for the heatmap
+    heatmap_grid = np.zeros((H, W))  # Assuming H and W are the height and width of your grid
 
-    for x, y in locations:
-        heatmap_matrix[x, y] += 1  # Increment count for the location
+    # Iterate over the locations and increment the heatmap grid
+    for location in locations:
+        x = getattr(location, x_attr)
+        y = getattr(location, y_attr)
+        heatmap_grid[y, x] += 1  # Increment the count at the (x, y) location
 
-    # Create and return the heatmap image, don't show it yet
-    img = plt.imshow(heatmap_matrix, cmap='viridis', interpolation='lanczos')
-    return img
+    # Now, you can proceed to generate the heatmap visualization with heatmap_grid
+    # For example, using matplotlib to display the heatmap
+    plt.imshow(heatmap_grid, cmap='hot', interpolation='nearest')
+    plt.colorbar()
+    plt.show()
+
+    return heatmap_grid
 
 

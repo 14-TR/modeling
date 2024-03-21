@@ -40,11 +40,11 @@ def calculate_metrics(grid, attribute_name):
     return max_value, min_value, avg_value, n_value
 
 
-def run_simulation(num_days, num_humans, num_zombies, surf):
-    grid = Grid(width=W, height=H)  # will be added to single point adjustment function later
+def run_simulation(num_days, num_humans, num_zombies, surf, resource_points):
+    # resource_points = Grid.generate_resource_points(W, H, num_points=4)  # Define this function to generate points
 
+    grid = Grid(width=W, height=H, resource_points=resource_points)
     grid.append_surface(surf)
-
     # Add humans
     for _ in range(num_humans):
         x, y = random.randint(0, grid.width - 1), random.randint(0, grid.height - 1)
@@ -116,12 +116,17 @@ def encounters_to_dataframe(encounter_log):
         'Day': record.day,
         'Being ID': record.being_id,
         'Other Being ID': record.other_being_id,
-        'Encounter Type': record.encounter_type,
+        'Encounter Type': record.encounter_type,  # Ensure this line correctly references the attribute
         'X': record.x,
         'Y': record.y,
         'Z': record.z
     } for record in encounter_log.records]
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    # If you're renaming columns, ensure it's done correctly
+    df.rename(columns={'Encounter Type': 'encounter_type'}, inplace=True)
+    return df
+
+
 
 def resources_to_dataframe(resource_log):
     data = [{
@@ -133,6 +138,7 @@ def resources_to_dataframe(resource_log):
         'Reason': record.reason
     } for record in resource_log.records]
     return pd.DataFrame(data)
+
 
 def movements_to_dataframe(movement_log):
     data = [{
@@ -146,14 +152,16 @@ def movements_to_dataframe(movement_log):
     } for record in movement_log.records]
     return pd.DataFrame(data)
 
+
 def write_logs_to_dataframes():
     encounter_df = encounters_to_dataframe(EncounterLog())
     resource_df = resources_to_dataframe(ResourceLog())
     movement_df = movements_to_dataframe(MovementLog())
 
-    # Optionally, you can merge these DataFrames into one for unified analysis
-    # This step depends on how you plan to analyze the data and whether you need them combined or separate
-    # Example of a simple concatenation (make sure your records have a way to be distinguished, e.g., by adding a 'Log Type' column to each DataFrame before concatenation)
+    # Optionally, you can merge these DataFrames into one for unified analysis This step depends on how you plan to
+    # analyze the data and whether you need them combined or separate Example of a simple concatenation (make sure
+    # your records have a way to be distinguished, e.g., by adding a 'Log Type' column to each DataFrame before
+    # concatenation)
 
     # Add 'Log Type' columns to distinguish between logs
     encounter_df['Log Type'] = 'Encounter'
@@ -165,10 +173,22 @@ def write_logs_to_dataframes():
     return encounter_df, resource_df, movement_df, combined_df  # Return individual and combined DataFrames
 
 
+# selct movements of huumans reference the being id and the is zombie attribute
+def extract_movement_human(logs):
+    movement_data = []
+    for record in logs.records:
+        #use the get_is_zombie method to check if the being is a zombie
+        if not record.being_id.get_is_zombie():
+            movement_data.append((record.x, record.y))
+    return movement_data
 
-def select_movements_by_class(movement_data, elevation_classes, class_num):
-    # Filters movement data for movements in the specified elevation class
-    return [(x, y) for x, y in movement_data if elevation_classes[x, y] == class_num]
+
+def extract_movement_zombie(logs):
+    movement_data = []
+    for record in logs.records:
+        if record.being_id.get_is_zombie():
+            movement_data.append((record.x, record.y))
+    return movement_data
 
 
 def extract_movement_data(logs):

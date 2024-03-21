@@ -27,10 +27,11 @@ def extract_temporal_data(logs):
 
     return daily_data
 
-def extract_encounter_data(logs):
+
+def extract_encounter_data(logs, encounter_type=None):
     encounter_data = []
     for record in logs.records:
-        if record.encounter_type in ["INF", "ESC", "WIN", "WAR", "LUV"]:  # Adjust based on your event types
+        if encounter_type is None or record.encounter_type == encounter_type:
             encounter_data.append({
                 'epoch': record.epoch,
                 'day': record.day,
@@ -42,6 +43,7 @@ def extract_encounter_data(logs):
                 'z': record.z
             })
     return encounter_data
+
 
 def extract_resource_data(logs):
     # Extracting resource change data from the ResourceLog
@@ -58,3 +60,20 @@ def extract_resource_data(logs):
 
     # Convert the list of dictionaries to a pandas DataFrame
     return pd.DataFrame(res_data)
+
+def extract_movement_data(logs):
+    # Extracting movement data from the MovementLog
+    mov_data = []
+    for record in logs.records:
+        mov_data = [{
+            'Epoch': record.epoch,
+            'Day': record.day,
+            'Being ID': record.being_id,
+            'Start X': record.start_x,
+            'Start Y': record.start_y,
+            'End X': record.end_x,
+            'End Y': record.end_y
+        } for record in logs.records]
+
+    # Convert the list of dictionaries to a pandas DataFrame
+    return pd.DataFrame(mov_data)

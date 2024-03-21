@@ -1,5 +1,5 @@
 #grid params
-W, H = 100,100
+W, H = 500,500
 
 #simulation count
 eps = 384
