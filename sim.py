@@ -17,11 +17,11 @@ capturing detailed records of the simulation's events.
 """
 #########################################################
 
-from classes import Being, Grid, DayTracker, Log
-from config import W, H
-from surface_noise import generate_noise
-import pandas as pd
 import random
+import pandas as pd
+
+from classes import Being, Grid, DayTracker, EncounterLog, MovementLog, ResourceLog
+from config import W, H
 
 
 def calculate_metrics(grid, attribute_name):
@@ -39,8 +39,8 @@ def calculate_metrics(grid, attribute_name):
 
     return max_value, min_value, avg_value, n_value
 
-def run_simulation(num_days, num_humans, num_zombies, surf):
 
+def run_simulation(num_days, num_humans, num_zombies, surf):
     grid = Grid(width=W, height=H)  # will be added to single point adjustment function later
 
     grid.append_surface(surf)
@@ -72,11 +72,9 @@ def run_simulation(num_days, num_humans, num_zombies, surf):
             days_until_all_zombies = day
             break
 
-
-    #get the number of humans and zombies that are not active
+    # get the number of humans and zombies that are not active
     humans, zombies = grid.count_humans_and_zombies()
     full_dead = (num_humans + num_zombies) - (humans + zombies)
-
 
     # Calculate metrics for the simulation
 
@@ -112,24 +110,70 @@ def run_simulation(num_days, num_humans, num_zombies, surf):
     return metrics
 
 
-def write_log_to_dataframe():
-    log_instance = Log()
-    # list of dictionaries
-    data = [
-        {
-            'Epoch': record.epoch,
-            'Day': record.day,
-            'Being ID': record.being_id,
-            'Event Type': record.event_type,
-            'Description': record.description,
-            'X': record.x,
-            'Y': record.y,
-            'Z': record.z
-        }
-        for record in log_instance.records
-    ]
+def encounters_to_dataframe(encounter_log):
+    data = [{
+        'Epoch': record.epoch,
+        'Day': record.day,
+        'Being ID': record.being_id,
+        'Other Being ID': record.other_being_id,
+        'Encounter Type': record.encounter_type,
+        'X': record.x,
+        'Y': record.y,
+        'Z': record.z
+    } for record in encounter_log.records]
+    return pd.DataFrame(data)
 
-    log_df = pd.DataFrame(data)
+def resources_to_dataframe(resource_log):
+    data = [{
+        'Epoch': record.epoch,
+        'Day': record.day,
+        'Being ID': record.being_id,
+        'Resource Change': record.resource_change,
+        'Current Resources': record.current_resources,
+        'Reason': record.reason
+    } for record in resource_log.records]
+    return pd.DataFrame(data)
 
-    return log_df
+def movements_to_dataframe(movement_log):
+    data = [{
+        'Epoch': record.epoch,
+        'Day': record.day,
+        'Being ID': record.being_id,
+        'Start X': record.start_x,
+        'Start Y': record.start_y,
+        'End X': record.end_x,
+        'End Y': record.end_y
+    } for record in movement_log.records]
+    return pd.DataFrame(data)
 
+def write_logs_to_dataframes():
+    encounter_df = encounters_to_dataframe(EncounterLog())
+    resource_df = resources_to_dataframe(ResourceLog())
+    movement_df = movements_to_dataframe(MovementLog())
+
+    # Optionally, you can merge these DataFrames into one for unified analysis
+    # This step depends on how you plan to analyze the data and whether you need them combined or separate
+    # Example of a simple concatenation (make sure your records have a way to be distinguished, e.g., by adding a 'Log Type' column to each DataFrame before concatenation)
+
+    # Add 'Log Type' columns to distinguish between logs
+    encounter_df['Log Type'] = 'Encounter'
+    resource_df['Log Type'] = 'Resource'
+    movement_df['Log Type'] = 'Movement'
+
+    combined_df = pd.concat([encounter_df, resource_df, movement_df], ignore_index=True)
+
+    return encounter_df, resource_df, movement_df, combined_df  # Return individual and combined DataFrames
+
+
+
+def select_movements_by_class(movement_data, elevation_classes, class_num):
+    # Filters movement data for movements in the specified elevation class
+    return [(x, y) for x, y in movement_data if elevation_classes[x, y] == class_num]
+
+
+def extract_movement_data(logs):
+    movement_data = []
+    for record in logs.records:
+        if record.event_type == "MOV":
+            movement_data.append((record.x, record.y))
+    return movement_data
