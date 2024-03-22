@@ -22,13 +22,11 @@ import datetime
 import os
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
 from classes import Epoch, DayTracker, EncounterLog, ResourceLog, MovementLog, Grid
 from config import W, H, eps, vi, vj, z, num_humans, num_zombies, days
 from mapping import generate_heatmap
-from modeling.analysis import extract_encounter_data, extract_resource_data
 #########################################################
 # imports
 from sim import run_simulation, encounters_to_dataframe, movements_to_dataframe, resources_to_dataframe, \
@@ -36,10 +34,11 @@ from sim import run_simulation, encounters_to_dataframe, movements_to_dataframe,
 from surface_noise import generate_noise
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-# output_folder = f"C:\\Users\\TR\\Desktop\\z\\GIT\\modeling\\sims\\sim__{timestamp}__N{eps}"
-output_folder = f"C:\\Users\\tingram\\Desktop\\Captains Log\\UWYO\\GIT\\sims\\sim__{timestamp}__N{eps}"
+output_folder = f"C:\\Users\\TR\\Desktop\\z\\GIT\\modeling\\sims\\sim__{timestamp}__N{eps}"
+# output_folder = f"C:\\Users\\tingram\\Desktop\\Captains Log\\UWYO\\GIT\\sims\\sim__{timestamp}__N{eps}"
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
+
 
 def main():
     results = []
@@ -66,21 +65,36 @@ def main():
         mov_csv_path = os.path.join(output_folder, 'mov_log.csv')
         res_csv_path = os.path.join(output_folder, 'res_log.csv')
 
-
         met_df = pd.DataFrame(results)
         met_df.to_csv(results_csv_path, index=False)
 
-        #logs
+        # logs
         enc_log_instance = EncounterLog()
         mov_log_instance = MovementLog()
         res_log_instance = ResourceLog()
 
-        #logs to dfs
+        # logs to dfs
         enc_df = encounters_to_dataframe(enc_log_instance)
+        if 'Encounter Type' in enc_df.columns:
+            # Filter rows where 'Encounter Type' is 'INF'
+            inf_encounters = enc_df[enc_df['Encounter Type'] == 'INF']
+
+            # Count the number of 'INF' encounters
+            num_inf_encounters = inf_encounters.shape[0]
+
+            # If you want to visualize the count as a bar chart
+            encounter_counts = enc_df['Encounter Type'].value_counts()
+            encounter_counts.plot(kind='bar')
+            plt.xlabel('Encounter Type')
+            plt.ylabel('Count')
+            plt.title('Encounter Types Distribution')
+            plt.show()
+        else:
+            print("Encounter Type column not found in the DataFrame.")
         mov_df = movements_to_dataframe(mov_log_instance)
         res_df = resources_to_dataframe(res_log_instance)
 
-        #log dfs to csv
+        # log dfs to csv
         enc_df.to_csv(enc_csv_path, index=False)
         mov_df.to_csv(mov_csv_path, index=False)
         res_df.to_csv(res_csv_path, index=False)
@@ -94,7 +108,7 @@ def main():
         elevation_surface_filename = "elevation_surface.png"
         plt.savefig(os.path.join(output_folder, elevation_surface_filename))
 
-        #map clustering encounters by type
+        # map clustering encounters by type
         encounter_counts = enc_df['INF'].value_counts()
         encounter_counts.plot(kind='bar')
         plt.xlabel('Encounter Type')
@@ -102,7 +116,6 @@ def main():
         plt.title('Encounter Types Distribution')
         encounter_counts_filename = "encounter_counts.png"
         plt.savefig(os.path.join(output_folder, encounter_counts_filename))
-
 
         # #--------------------------------------------
         # #--------------------------------------------
@@ -146,11 +159,12 @@ def main():
         # human_movement_heatmap_filename = "human_movement_heatmap.png"
         # plt.savefig(os.path.join(output_folder, human_movement_heatmap_filename))
 
-        #make a map of all zombie movements
+        # make a map of all zombie movements
         zombie_movements = extract_movement_human(mov_log_instance)
         zombie_movement_heatmap = generate_heatmap(zombie_movements)
         zombie_movement_heatmap_filename = "zombie_movement_heatmap.png"
         plt.savefig(os.path.join(output_folder, zombie_movement_heatmap_filename))
+
 
 if __name__ == "__main__":
     main()

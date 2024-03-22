@@ -113,9 +113,22 @@ class Being:
             current_z = grid.get_elev_at(self.x, self.y)
             new_z = grid.get_elev_at(new_x, new_y)
 
-            # Collect resources if at a resource point
+
+        # Example: Logging resource replenishment at a resource point
         if (self.x, self.y) in resource_points:
-            self.resources = min(self.resources + 10, 10)
+            replenished_amount = min(10 - self.resources, 10)
+            self.resources += replenished_amount
+            resource_log_instance = ResourceLog()
+            resource_log_instance.add_record(
+                ResourceRecord(
+                    epoch=Epoch.get_current_epoch(),
+                    day=DayTracker.get_current_day(),
+                    being_id=self.id,
+                    resource_change=replenished_amount,
+                    current_resources=self.resources,
+                    reason="resource_point_replenishment"
+                )
+            )
 
         # Check if the being is a zombie and if it's moving uphill
         if self.is_zombie:
@@ -142,7 +155,36 @@ class Being:
             # Human: Increase resource consumption if moving uphill
             if new_z > self.z:
                 self.resources -= ((new_z - self.z) + .5)  # Adjust this formula as needed
-            self.resources -= 0.5  # Standard movement cost for humans
+
+                # Log the resource change
+                resource_log_instance = ResourceLog()
+                resource_log_instance.add_record(
+                    ResourceRecord(
+                        epoch=Epoch.get_current_epoch(),
+                        day=DayTracker.get_current_day(),
+                        being_id=self.id,
+                        resource_change=((new_z - self.z) + .5) ,  # Amount of resources changed
+                        current_resources=self.resources,  # Current resources after the change
+                        reason="movement"  # Reason for the resource change
+                    )
+                )
+
+            # Standard movement cost for humans
+            self.resources -= 0.5
+
+            # Log the resource change
+            resource_log_instance = ResourceLog()
+            resource_log_instance.add_record(
+                ResourceRecord(
+                    epoch=Epoch.get_current_epoch(),
+                    day=DayTracker.get_current_day(),
+                    being_id=self.id,
+                    resource_change=-0.5,  # Amount of resources changed
+                    current_resources=self.resources,  # Current resources after the change
+                    reason="movement"  # Reason for the resource change
+                )
+            )
+
         else:
             # Zombie: Decrease lifespan with each move
             self.lifespan_z -= 1
@@ -227,6 +269,18 @@ class Being:
         elif outcome == 'win':
             self.win_xp += random.randint(0, (zombie.win_xp + 1))  # Gain win experience
             self.resources += zombie.resources  # Gain a small amount of resources
+            # Log the resource change
+            resource_log_instance = ResourceLog()
+            resource_log_instance.add_record(
+                ResourceRecord(
+                    epoch=Epoch.get_current_epoch(),
+                    day=DayTracker.get_current_day(),
+                    being_id=self.id,
+                    resource_change=+zombie.resources,  # Amount of resources changed
+                    current_resources=self.resources,  # Current resources after the change
+                    reason="movement"  # Reason for the resource change
+                )
+            )
             # kill the zombie
             zombie.is_active = False
             self.zh_kd += 1
@@ -267,7 +321,18 @@ class Being:
             self.love_xp += random.randint(0, (other_human.love_xp + 1))  # Gain love experience
             other_human.love_xp += 1
             avg_resources = (self.resources + other_human.resources) / 2
-            self.resources = other_human.resources = avg_resources  # Even out resources
+            self.resources = other_human.resources = avg_resources  # Even out resources############
+            resource_log_instance = ResourceLog()
+            resource_log_instance.add_record(
+                ResourceRecord(
+                    epoch=Epoch.get_current_epoch(),
+                    day=DayTracker.get_current_day(),
+                    being_id=self.id,
+                    resource_change=+self.resources - avg_resources,  # Amount of resources changed
+                    current_resources=self.resources,  # Current resources after the change
+                    reason="movement"  # Reason for the resource change
+                )
+            )
             self.h_enc += 1
             enc_log_instance = EncounterLog()
             enc_log_instance.add_record(
@@ -285,6 +350,17 @@ class Being:
             if self.war_xp > other_human.war_xp:
                 self.war_xp += random.randint(0, (other_human.war_xp + 1))  # Gain war experience
                 self.resources += other_human.resources  # Take all resources from the defeated
+                resource_log_instance = ResourceLog()
+                resource_log_instance.add_record(
+                    ResourceRecord(
+                        epoch=Epoch.get_current_epoch(),
+                        day=DayTracker.get_current_day(),
+                        being_id=self.id,
+                        resource_change=+other_human.resources,  # Amount of resources changed
+                        current_resources=self.resources,  # Current resources after the change
+                        reason="WAR"  # Reason for the resource change
+                    )
+                )
                 other_human.resources = 0  # The defeated loses all resources
                 other_human.is_zombie = True  # The defeated becomes a zombie
                 self.hh_kd += 1
@@ -307,7 +383,29 @@ class Being:
                         self.theft += 1
                         amount = random.randint(0, round(other_human.resources + 1))
                         self.resources += amount
+                        resource_log_instance = ResourceLog()
+                        resource_log_instance.add_record(
+                            ResourceRecord(
+                                epoch=Epoch.get_current_epoch(),
+                                day=DayTracker.get_current_day(),
+                                being_id=self.id,
+                                resource_change=+amount,  # Amount of resources changed
+                                current_resources=self.resources,  # Current resources after the change
+                                reason="movement"  # Reason for the resource change
+                            )
+                        )
                         other_human.resources -= amount
+                        resource_log_instance = ResourceLog()
+                        resource_log_instance.add_record(
+                            ResourceRecord(
+                                epoch=Epoch.get_current_epoch(),
+                                day=DayTracker.get_current_day(),
+                                being_id=other_human.id,
+                                resource_change=-amount,  # Amount of resources changed
+                                current_resources=other_human.resources,  # Current resources after the change
+                                reason="movement"  # Reason for the resource change
+                            )
+                        )
                         enc_log_instance = EncounterLog()
                         enc_log_instance.add_record(
                             EncounterRecord(epoch=Epoch.get_current_epoch(),
@@ -339,6 +437,17 @@ class Being:
                     else:
                         self.war_xp += random.randint(0, (other_human.war_xp + 1))  # Gain war experience
                         self.resources += other_human.resources  # Take all resources from the defeated
+                        resource_log_instance = ResourceLog()
+                        resource_log_instance.add_record(
+                            ResourceRecord(
+                                epoch=Epoch.get_current_epoch(),
+                                day=DayTracker.get_current_day(),
+                                being_id=self.id,
+                                resource_change=+other_human.resources,  # Amount of resources changed
+                                current_resources=self.resources,  # Current resources after the change
+                                reason="movement"  # Reason for the resource change
+                            )
+                        )
                         other_human.resources = 0  # The defeated loses all resources
                         other_human.is_zombie = True  # The defeated becomes a zombie
                         self.hh_kd += 1
