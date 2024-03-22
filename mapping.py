@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 from classes import EncounterLog
@@ -30,3 +32,23 @@ def generate_heatmap(locations, x_attr='x', y_attr='y'):
     return heatmap_grid
 
 
+def generate_heatmap_by_enc_type(locations, x_attr, y_attr):
+    heatmap_grid = np.zeros((H, W))
+    # Iterate over the locations and increment the heatmap grid
+    for location in locations:
+        x = getattr(location, x_attr)
+        y = getattr(location, y_attr)
+        heatmap_grid[y, x] += 1  # Increment the count at the (x, y) location
+
+    return heatmap_grid
+
+
+def generate_heatmap_from_df(enc_df, dx='X', dy='Y'):
+    heatmap_grid = np.zeros((H, W))
+    # Iterate over the locations and increment the heatmap grid
+    for index, row in enc_df.iterrows():
+        x = row[dx]
+        y = row[dy]
+        heatmap_grid[y, x] += 1  # Increment the count at the (x, y) location
+
+    return heatmap_grid

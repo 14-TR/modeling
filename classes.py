@@ -126,7 +126,7 @@ class Being:
                     being_id=self.id,
                     resource_change=replenished_amount,
                     current_resources=self.resources,
-                    reason="resource_point_replenishment"
+                    reason="RPR"
                 )
             )
 
@@ -163,9 +163,9 @@ class Being:
                         epoch=Epoch.get_current_epoch(),
                         day=DayTracker.get_current_day(),
                         being_id=self.id,
-                        resource_change=((new_z - self.z) + .5) ,  # Amount of resources changed
+                        resource_change=-((new_z - self.z) + .5),  # Amount of resources changed
                         current_resources=self.resources,  # Current resources after the change
-                        reason="movement"  # Reason for the resource change
+                        reason="MOV"  # Reason for the resource change
                     )
                 )
 
@@ -181,13 +181,13 @@ class Being:
                     being_id=self.id,
                     resource_change=-0.5,  # Amount of resources changed
                     current_resources=self.resources,  # Current resources after the change
-                    reason="movement"  # Reason for the resource change
+                    reason="MOV"  # Reason for the resource change
                 )
             )
 
         else:
             # Zombie: Decrease lifespan with each move
-            self.lifespan_z -= 1
+            self.lifespan_z -= 1.5
 
         # Update being's position if it has enough resources/lifespan
         if (not self.is_zombie and self.resources > 0) or (self.is_zombie and self.lifespan_z > 0):
@@ -278,7 +278,7 @@ class Being:
                     being_id=self.id,
                     resource_change=+zombie.resources,  # Amount of resources changed
                     current_resources=self.resources,  # Current resources after the change
-                    reason="movement"  # Reason for the resource change
+                    reason="WIN"  # Reason for the resource change
                 )
             )
             # kill the zombie
@@ -320,31 +320,58 @@ class Being:
         if outcome == 'love':
             self.love_xp += random.randint(0, (other_human.love_xp + 1))  # Gain love experience
             other_human.love_xp += 1
+
+            # Calculate average resources and the resource change for each being
             avg_resources = (self.resources + other_human.resources) / 2
-            self.resources = other_human.resources = avg_resources  # Even out resources############
+            self_resource_change = avg_resources - self.resources
+            other_resource_change = avg_resources - other_human.resources
+
+            # Update resources to the average for both beings
+            self.resources = other_human.resources = avg_resources
+
+            # Log resource change for self
             resource_log_instance = ResourceLog()
             resource_log_instance.add_record(
                 ResourceRecord(
                     epoch=Epoch.get_current_epoch(),
                     day=DayTracker.get_current_day(),
                     being_id=self.id,
-                    resource_change=+self.resources - avg_resources,  # Amount of resources changed
+                    resource_change=self_resource_change,  # Positive if gained, negative if lost
                     current_resources=self.resources,  # Current resources after the change
-                    reason="movement"  # Reason for the resource change
+                    reason="LUV"  # Reason for the resource change
                 )
             )
+
+            # Log resource change for the other human
+            resource_log_instance.add_record(
+                ResourceRecord(
+                    epoch=Epoch.get_current_epoch(),
+                    day=DayTracker.get_current_day(),
+                    being_id=other_human.id,
+                    resource_change=other_resource_change,  # Positive if gained, negative if lost
+                    current_resources=other_human.resources,  # Current resources after the change
+                    reason="LUV"  # Reason for the resource change
+                )
+            )
+
+            # Increase love encounter count
             self.h_enc += 1
+
+            # Log the encounter for self (assuming similar for other_human)
             enc_log_instance = EncounterLog()
             enc_log_instance.add_record(
-                EncounterRecord(epoch=Epoch.get_current_epoch(),
-                                day=DayTracker.get_current_day(),
-                                being_id=self.id,
-                                other_being_id=other_human.id,
-                                encounter_type="LUV",
-                                x=self.x,
-                                y=self.y,
-                                z=self.z)
+                EncounterRecord(
+                    epoch=Epoch.get_current_epoch(),
+                    day=DayTracker.get_current_day(),
+                    being_id=self.id,
+                    other_being_id=other_human.id,
+                    encounter_type="LUV",
+                    x=self.x,
+                    y=self.y,
+                    z=self.z
+                )
             )
+
 
         else:
             if self.war_xp > other_human.war_xp:
@@ -391,7 +418,7 @@ class Being:
                                 being_id=self.id,
                                 resource_change=+amount,  # Amount of resources changed
                                 current_resources=self.resources,  # Current resources after the change
-                                reason="movement"  # Reason for the resource change
+                                reason="STL"  # Reason for the resource change
                             )
                         )
                         other_human.resources -= amount
@@ -403,7 +430,7 @@ class Being:
                                 being_id=other_human.id,
                                 resource_change=-amount,  # Amount of resources changed
                                 current_resources=other_human.resources,  # Current resources after the change
-                                reason="movement"  # Reason for the resource change
+                                reason="ROB"  # Reason for the resource change
                             )
                         )
                         enc_log_instance = EncounterLog()
@@ -445,7 +472,7 @@ class Being:
                                 being_id=self.id,
                                 resource_change=+other_human.resources,  # Amount of resources changed
                                 current_resources=self.resources,  # Current resources after the change
-                                reason="movement"  # Reason for the resource change
+                                reason="WAR"  # Reason for the resource change
                             )
                         )
                         other_human.resources = 0  # The defeated loses all resources
@@ -499,7 +526,11 @@ class Grid:
             x = random.randint(0, self.width - 1)
             y = random.randint(0, self.height - 1)
             points.add((x, y))
+        self.resource_points = points
         return points
+
+    def get_xy_resource_points(self):
+        return [(x, y) for x, y in self.resource_points]
 
     def add_being(self, being):
         while (being.x, being.y) in self.occupied_positions:  # Check if position is occupied
@@ -606,6 +637,7 @@ class EncounterRecord:
         self.z = z
 
 
+
 # -----------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------
 
@@ -624,6 +656,9 @@ class EncounterLog:
 
     def get_records_by_day(self, day):
         return [record for record in self.records if record.day == day]
+
+    def get_records_by_type(self, event_type):
+        return [record for record in self.records if record.encounter_type == event_type]
 
 
 # -----------------------------------------------------------------------------------------

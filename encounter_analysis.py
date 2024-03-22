@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 # Assuming extract_encounter_data function is adapted for EncounterLog
 from analysis import extract_encounter_data
 from classes import EncounterLog, Epoch, DayTracker
-from config import W, H, days, num_humans, num_zombies, eps
+from config import W, H, days, num_humans, num_zombies, EPS
 from sim import run_simulation
 from surface_noise import generate_noise
 
@@ -13,7 +13,7 @@ surf = generate_noise(W, H, 0.1, 0.1, 1)  # Example surface noise parameters
 # simulation_result = run_simulation(365, 100, 5, surf)
 results = []
 Epoch.epoch = 0
-for _ in range(eps):  # 384 based on infinite sample
+for _ in range(EPS):  # 384 based on infinite sample
     Epoch.increment_sim()
     DayTracker.reset()  # Reset the day tracker at the start of each simulation
     simulation_result = run_simulation(days, num_humans, num_zombies, surf)  # Run

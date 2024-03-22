@@ -1,4 +1,6 @@
 import pandas as pd
+import geopandas as gpd
+
 
 
 def extract_temporal_data(logs):
@@ -26,6 +28,23 @@ def extract_temporal_data(logs):
             data['avg_zombie_lifespan'] = data['zombie_lifespan'] / data['zombies']
 
     return daily_data
+
+
+def extract_enc_data_from_df(df, encounter_type=None):
+    encounter_data = []
+    for index, row in df.iterrows():
+        if encounter_type is None or row['encounter_type'] == encounter_type:
+            encounter_data.append({
+                'epoch': row['Epoch'],
+                'day': row['Day'],
+                'being_id': row['Being ID'],
+                'other_being_id': row['Other Being ID'],
+                'encounter_type': row['encounter_type'],
+                'x': row['X'],
+                'y': row['Y'],
+                'z': row['Z']
+            })
+    return encounter_data
 
 
 def extract_encounter_data(logs, encounter_type=None):
@@ -61,6 +80,7 @@ def extract_resource_data(logs):
     # Convert the list of dictionaries to a pandas DataFrame
     return pd.DataFrame(res_data)
 
+
 def extract_movement_data(logs):
     # Extracting movement data from the MovementLog
     mov_data = []
@@ -77,3 +97,33 @@ def extract_movement_data(logs):
 
     # Convert the list of dictionaries to a pandas DataFrame
     return pd.DataFrame(mov_data)
+
+
+def perform_dbscan_clustering(gdf, eps=50, min_samples=5):
+    """
+    Perform DBSCAN clustering on a GeoDataFrame of points.
+
+    Parameters:
+    gdf (GeoDataFrame): A GeoDataFrame containing the points to cluster.
+    EPS (float): The maximum distance between two samples for them to be considered as in the same neighborhood.
+    min_samples (int): The number of samples in a neighborhood for a point to be considered as a core point.
+
+    Returns:
+    GeoDataFrame: A GeoDataFrame with an additional 'cluster' column indicating the cluster assignment for each point.
+    """
+    from sklearn.cluster import DBSCAN
+    import numpy as np
+
+    # Ensure the CRS is projected for meaningful distance calculations (meters)
+    if gdf.crs.is_geographic:
+        print("Warning: GeoDataFrame is in a geographic CRS. Consider projecting to a planar CRS for meaningful "
+              "distance calculations.")
+
+    # Extract point coordinates for DBSCAN
+    coords = np.array(gdf.geometry.apply(lambda geom: (geom.x, geom.y)).tolist())
+
+    # DBSCAN clustering
+    dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+    gdf['cluster'] = dbscan.fit_predict(coords)
+
+    return gdf

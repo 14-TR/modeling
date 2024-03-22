@@ -20,7 +20,7 @@ capturing detailed records of the simulation's events.
 import random
 import pandas as pd
 
-from classes import Being, Grid, DayTracker, EncounterLog, MovementLog, ResourceLog
+from classes import Being, Grid, DayTracker, EncounterLog, MovementLog, ResourceLog, Epoch
 from config import W, H
 
 
@@ -32,12 +32,13 @@ def calculate_metrics(grid, attribute_name):
     if not values:  # If the list is empty, return None for all metrics
         return None, None, None
 
-    max_value = max(values)
-    min_value = min(values)
+    # max_value = max(values)
+    # min_value = min(values)
     avg_value = sum(values) / len(values)
     n_value = sum(values)
 
-    return max_value, min_value, avg_value, n_value
+    # max_value, min_value,
+    return avg_value, n_value
 
 
 def run_simulation(num_days, num_humans, num_zombies, surf, resource_points):
@@ -96,9 +97,10 @@ def run_simulation(num_days, num_humans, num_zombies, surf, resource_points):
     ]
 
     for item in attr_list:
-        max_value, min_value, avg_value, n_value = calculate_metrics(grid, item)
-        metrics[f'max_{item}'] = max_value
-        metrics[f'min_{item}'] = min_value
+        # max_value, min_value, #
+        avg_value, n_value = calculate_metrics(grid, item)
+        # metrics[f'max_{item}'] = max_value
+        # metrics[f'min_{item}'] = min_value
         metrics[f'mean_{item}'] = avg_value
         metrics[f'count_{item}'] = n_value
 
@@ -106,6 +108,7 @@ def run_simulation(num_days, num_humans, num_zombies, surf, resource_points):
     metrics['humans'] = humans
     metrics['zombies'] = zombies
     metrics['full_dead'] = full_dead
+    metrics['epoch_id'] = Epoch.get_current_epoch()
 
     return metrics
 

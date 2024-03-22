@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from classes import Epoch, DayTracker, EncounterLog, ResourceLog, MovementLog, Grid
-from config import W, H, eps, vi, vj, z, num_humans, num_zombies, days
+from config import W, H, EPS, vi, vj, z, num_humans, num_zombies, days
 from mapping import generate_heatmap
 #########################################################
 # imports
@@ -34,8 +34,8 @@ from sim import run_simulation, encounters_to_dataframe, movements_to_dataframe,
 from surface_noise import generate_noise
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-output_folder = f"C:\\Users\\TR\\Desktop\\z\\GIT\\modeling\\sims\\sim__{timestamp}__N{eps}"
-# output_folder = f"C:\\Users\\tingram\\Desktop\\Captains Log\\UWYO\\GIT\\sims\\sim__{timestamp}__N{eps}"
+# output_folder = f"C:\\Users\\TR\\Desktop\\z\\GIT\\modeling\\sims\\sim__{timestamp}__N{EPS}"
+output_folder = f"C:\\Users\\tingram\\Desktop\\Captains Log\\UWYO\\GIT\\sims\\sim__{timestamp}__N{EPS}"
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
@@ -45,7 +45,7 @@ def main():
     Epoch.epoch = 0
     surf = generate_noise(W, H, vi, vj, z)
 
-    for _ in range(eps):  # For each simulation epoch
+    for _ in range(EPS):  # For each simulation epoch
         Epoch.increment_sim()
         DayTracker.reset()  # Reset the day tracker
 
