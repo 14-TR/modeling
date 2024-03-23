@@ -17,13 +17,8 @@ num_zombies = 1
 #make noise parameters so it is a steeper slope
 vi = 0.01
 vj = 0.01
-z = 5
+Z = 5
 
-
-GRID_WIDTH = 100
-GRID_HEIGHT = 100
-INITIAL_HUMANS = 50
-INITIAL_ZOMBIES = 10
 
 
 
