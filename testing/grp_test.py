@@ -1,4 +1,4 @@
-from classes import Grid, Being
+from archive.classes import Grid, Being
 
 
 def main():

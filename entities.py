@@ -35,7 +35,7 @@ class Entity:
     def log_movement(self, start_x, start_y, start_z):
         movement_record = MovementRecord(
             being_id=self.id,
-            epoch=Epoch.get_current_epoch,
+            epoch=Epoch.get_current_epoch(),
             day=DayTracker.get_current_day(),
             start_x=start_x,
             start_y=start_y,
@@ -49,7 +49,7 @@ class Entity:
     def log_resource_change(self, change, reason):
         resource_record = ResourceRecord(
             being_id=self.id,
-            epoch=Epoch.get_current_epoch,
+            epoch=Epoch.get_current_epoch(),
             day=DayTracker.get_current_day(),
             x=self.x,
             y=self.y,
@@ -63,7 +63,7 @@ class Entity:
     def log_encounter(self, other_being_id, encounter_type):
         encounter_record = EncounterRecord(
             being_id=self.id,
-            epoch=Epoch.get_current_epoch,
+            epoch=Epoch.get_current_epoch(),
             day=DayTracker.get_current_day(),
             x=self.x,
             y=self.y,
@@ -75,9 +75,11 @@ class Entity:
 
 
 class Human(Entity):
-    def __init__(self, x, y, z, grid, resources=None, esc_xp=0, win_xp=0, love_xp=0, war_xp=0, theft_chance=0.2):
+    def __init__(self, x, y, z, grid, resources=random.randint(10, 20), esc_xp=0, win_xp=0, love_xp=0,
+                 war_xp=0,
+                 theft_chance=0.2):
         super().__init__(x, y, z, grid)
-        self.resources = resources if resources is not None else random.randint(10, 20)
+        self.resources = resources
         self.esc_xp = esc_xp
         self.win_xp = win_xp
         self.love_xp = love_xp
@@ -86,7 +88,186 @@ class Human(Entity):
         self.group = None
         self.is_zombie = False
 
-    # Other methods remain the same...
+    def become_zombie(self):
+        self.lifespan_z = 10
+        self.is_zombie = True
+
+    def consume_resources(self):
+        self.resources -= 0.5
+        self.log.add_resource_record(self.log_resource_change(-0.5, 'DLY'))
+        if self.resources <= 0:
+            self.become_zombie()
+
+    def move_towards_resource(self):
+        if self.resources < 5:
+            resource_points = self.grid.get_resource_points_near(self.x, self.y)
+            if resource_points:
+                target_x, target_y = min(resource_points,
+                                         key=lambda point: (point[0] - self.x) ** 2 + (point[1] - self.y) ** 2)
+                self.move_towards(target_x, target_y)
+
+    def move_towards_group(self):
+        if self.group:
+            group_x = sum(member.x for member in self.group.members) / len(self.group.members)
+            group_y = sum(member.y for member in self.group.members) / len(self.group.members)
+            self.move_towards(group_x, group_y)
+
+    def move_towards(self, target_x, target_y):
+        dx = target_x - self.x
+        dy = target_y - self.y
+        dx = dx // abs(dx) if dx != 0 else 0
+        dy = dy // abs(dy) if dy != 0 else 0
+        super().move(dx, dy)
+
+    def interact(self, other):
+        if isinstance(other, Human):
+            self.interact_with_human(other)
+        elif isinstance(other, Zombie):
+            self.encounter_zombie(other)
+
+    def interact_with_human(self, other_human):
+        outcome = random.choices(['love', 'war', 'theft'], weights=[self.love_xp, self.war_xp, self.theft_chance])[0]
+        if outcome == 'love':
+            self.handle_love_event(other_human)
+        elif outcome == 'war':
+            self.handle_war_event(other_human)
+        elif outcome == 'theft':
+            self.handle_theft_event(other_human)
+
+    def handle_love_event(self, other_human):
+        love_xp_gain = random.randint(1, (round(other_human.love_xp + 1)))
+        self.love_xp += love_xp_gain
+        other_human.love_xp += 1
+
+        # Calculate and share resources evenly
+        self_prev_res = self.resources
+        other_prev_res = other_human.resources
+        avg_resources = (self.resources + other_human.resources) / 2
+        enc_type = 'LUV'
+        self.log_resource_change(change=(avg_resources - self_prev_res), reason=enc_type)
+        self.log_resource_change(change=(avg_resources - other_prev_res), reason=enc_type)
+        self.log_encounter(encounter_type=enc_type, other_being_id=other_human.id)
+
+        # Handle group logic for love event (group formation or merging)
+        self.form_or_merge_group(other_human)
+
+    def handle_war_event(self, other_human):
+        if self.war_xp > other_human.war_xp:
+            # Current being wins and takes resources from the other being
+            war_xp_gain = random.randint(0, (round(other_human.war_xp) + 1))
+            self.war_xp += war_xp_gain
+            prev_res = other_human.resources
+            self.resources += prev_res
+            other_human.resources = 0  # The defeated loses all resources
+            other_human.is_zombie = True  # becomes a zombie
+
+            # Log the resource change
+            enc_type = 'WAR'
+            self.log_resource_change(change=prev_res, reason=enc_type)
+            self.log_encounter(encounter_type=enc_type, other_being_id=other_human.id)
+
+        elif self.war_xp < other_human.war_xp:
+            war_xp_gain = random.randint(0, (round(self.war_xp) + 1))
+            other_human.war_xp += war_xp_gain
+            prev_res = self.resources
+            other_human.resources += self.resources
+            self.resources = 0  # The defeated loses all resources
+            self.is_zombie = True  # becomes a zombie
+
+            # Log the resource change
+            enc_type ='WAR'
+            other_human.log_resource_change(change=prev_res, reason=enc_type)
+            other_human.log_encounter(encounter_type=enc_type, other_being_id=self.id)
+
+        else:
+            self.handle_theft_event(other_human)
+
+    def handle_theft_event(self, other_human):
+        if self.theft_chance > other_human.theft_chance:
+            # Current being wins and takes resources from the other being
+            theft_chance_gain = random.randint(0, (round(other_human.theft_chance) + 1))
+            self.theft_chance += theft_chance_gain
+            amount = random.randint(0, (other_human.resources + 1))
+            self.resources += amount
+            other_human.resources -= amount
+
+            # Log the resource change
+            self.log_resource_change(change=amount, reason='THF')
+            self.log_encounter(encounter_type='THF', other_being_id=other_human.id)
+
+        elif self.theft_chance < other_human.theft_chance:
+            theft_chance_gain = random.randint(0, (round(self.theft_chance) + 1))
+            other_human.war_xp += theft_chance_gain
+            amount = random.randint(0, (self.resources + 1))
+            other_human.resources += self.resources
+            self.resources -= amount  # The defeated loses all resources
+
+            # Log the resource change
+            other_human.log_resource_change(change=amount, reason='THF')
+            other_human.log_encounter(encounter_type='THF',other_being_id=self.id)
+
+        else:
+            pass
+
+    def form_or_merge_group(self, other_human):
+        # If neither is in a group, form a new group
+        if not self.group and not other_human.group:
+            new_group = Group()
+            new_group.add_member(self)
+            new_group.add_member(other_human)
+        # If one is in a group, add the other
+        elif self.group and not other_human.group:
+            self.group.add_member(other_human)
+        elif not self.group and other_human.group:
+            other_human.group.add_member(self)
+        # If both are in different groups, consider merging
+        elif self.group and other_human.group and self.group != other_human.group:
+            self.group.merge_with(other_human.group)
+
+    def encounter_zombie(self, zombie):
+        # Determine the outcome of the encounter
+        outcome = random.choices(['escape', 'win', 'infected'],
+                                 weights=[
+                                     self.esc_xp + 1,
+                                     self.win_xp + 1,
+                                     zombie.infection_chance + 1
+                                 ])[0]
+
+        if outcome == 'escape':
+            self.esc_xp += 1  # Gain escape experience
+            self.log_encounter(encounter_type='ESC', other_being_id=zombie.id)
+
+        elif outcome == 'win':
+            win_xp_gain = 1
+            self.win_xp += win_xp_gain  # Gain win experience
+            self.resources += 2  # Gain resources from the zombie
+            zombie.is_active = False  # Zombie is defeated
+
+            self.log_resource_change(change=2,reason='WIN')
+            self.log_encounter(encounter_type='WIN', other_being_id=zombie.id)
+
+        elif outcome == 'infected':
+            self.become_zombie()  # Human becomes a zombie  # Reset lifespan as a zombie
+
+            self.log_encounter(encounter_type='INF', other_being_id=zombie.id)
+
+    def update_status(self):
+        """
+        Update the status of a human. If resources run out, they turn into a zombie.
+        """
+        if self.resources > 0:
+            self.resources -= 0.5  # Simulate resource consumption
+            # Logging the resource consumption can be done here
+        else:
+            # Human turns into a zombie if resources run out
+            self.is_zombie = True
+            self.resources = 0
+            # Logging the transition to zombie can be done here
+
+            # If part of a group, remove from the group
+            if self.group:
+                self.group.remove_member(self)
+                self.group = None
 
 
 # Zombie class, also inheriting from Entity
@@ -191,6 +372,19 @@ class Zombie(Entity):
         if random.random() < self.infection_chance:
             # Infection logic here
             target.become_zombie()
+
+    def update_status(self):
+        """
+        Update the status of a zombie. Zombies may decay over time.
+        """
+          # Simulate the decay of the zombie
+        if self.lifespan_z > 1:
+            self.lifespan_z -= 1
+        else:
+            self.lifespan_z = 0
+            self.is_active = False # Zombie becomes inactive (decays)
+            # Logging decay
+
 
 
 # Group class for managing groups of humans

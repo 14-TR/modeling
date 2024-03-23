@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 from analysis.analysis import extract_resource_data
-from classes import ResourceLog  # Assuming ResourceLog is properly implemented
+from archive.classes import ResourceLog  # Assuming ResourceLog is properly implemented
 from config import W, H
 from archive.sim import run_simulation
 from surface_noise import generate_noise

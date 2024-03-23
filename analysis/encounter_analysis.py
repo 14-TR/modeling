@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 # Assuming extract_encounter_data function is adapted for EncounterLog
 from analysis.analysis import extract_encounter_data
-from classes import EncounterLog, Epoch, DayTracker
+from archive.classes import EncounterLog, Epoch, DayTracker
 from config import W, H, days, num_humans, num_zombies, EPS
 from archive.sim import run_simulation
 from surface_noise import generate_noise

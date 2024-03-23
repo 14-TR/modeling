@@ -20,9 +20,9 @@ class EncounterRecord(LogRecord):
 
 
 class ResourceRecord(LogRecord):
-    def __init__(self, being_id, epoch, day, x, y, z, change, current_resources, reason):
+    def __init__(self, being_id, epoch, day, x, y, z, resource_change, current_resources, reason):
         super().__init__(being_id, epoch, day, x, y, z)
-        self.resource_change = change
+        self.resource_change = resource_change
         self.current_resources = current_resources
         self.reason = reason
 

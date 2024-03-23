@@ -1,8 +1,6 @@
-import os
-
 import numpy as np
 import matplotlib.pyplot as plt
-from classes import EncounterLog
+from archive.classes import EncounterLog
 from config import W, H
 
 
