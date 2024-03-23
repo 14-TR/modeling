@@ -26,7 +26,7 @@ import pandas as pd
 
 from classes import Epoch, DayTracker, EncounterLog, ResourceLog, MovementLog, Grid
 from config import W, H, EPS, vi, vj, z, num_humans, num_zombies, days
-from mapping import generate_heatmap
+from analysis.mapping import generate_heatmap
 #########################################################
 # imports
 from sim import run_simulation, encounters_to_dataframe, movements_to_dataframe, resources_to_dataframe, \

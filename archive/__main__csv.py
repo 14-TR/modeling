@@ -7,8 +7,8 @@ from matplotlib import pyplot as plt
 
 from classes import Epoch, DayTracker, Grid, MovementLog, EncounterLog, ResourceLog
 from config import W, H, vi, vj, z, EPS, days, num_humans, num_zombies
-from modeling.analysis import extract_enc_data_from_df, perform_dbscan_clustering
-from modeling.mapping import generate_heatmap_by_enc_type, generate_heatmap_from_df
+from analysis.analysis import extract_enc_data_from_df
+from analysis.mapping import generate_heatmap_from_df
 from sim import run_simulation, encounters_to_dataframe, movements_to_dataframe, resources_to_dataframe
 from surface_noise import generate_noise
 
@@ -17,6 +17,7 @@ def main():
     global resource_points, grid
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     output_folder = f"C:/Users/tingram/Desktop/Captains Log/UWYO/GIT/sims/sim__{timestamp}"
+    output_folder = f"C:/Users/TR/Desktop/z/GIT/sims/sim__{timestamp}"
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 

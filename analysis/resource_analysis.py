@@ -1,10 +1,9 @@
-import pandas as pd
 import matplotlib.pyplot as plt
 
-from analysis import extract_resource_data, extract_encounter_data
+from analysis.analysis import extract_resource_data
 from classes import ResourceLog  # Assuming ResourceLog is properly implemented
 from config import W, H
-from sim import run_simulation
+from archive.sim import run_simulation
 from surface_noise import generate_noise
 
 # Run the simulation

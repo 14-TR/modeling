@@ -1,11 +1,7 @@
-from classes import Log  # Assuming Log class is in classes.py
 # Import other necessary classes or functions
-from classes import Log, Being, DayTracker, Epoch
-from analysis import extract_temporal_data
-from sim import run_simulation, write_log_to_dataframe
+from archive.sim import run_simulation, write_log_to_dataframe
 from config import W,H
 from surface_noise import generate_noise
-import pandas as pd
 import matplotlib.pyplot as plt
 
 

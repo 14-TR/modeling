@@ -2,10 +2,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Assuming extract_encounter_data function is adapted for EncounterLog
-from analysis import extract_encounter_data
+from analysis.analysis import extract_encounter_data
 from classes import EncounterLog, Epoch, DayTracker
 from config import W, H, days, num_humans, num_zombies, EPS
-from sim import run_simulation
+from archive.sim import run_simulation
 from surface_noise import generate_noise
 
 # Run the simulation

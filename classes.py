@@ -19,7 +19,7 @@ outcomes, culminating in a dataset that reflects the dynamics of this virtual ec
 #########################################################
 
 import random
-from surface_noise import generate_noise
+import networkx as nx
 
 
 # ==================================================================
@@ -62,17 +62,25 @@ class Epoch:
 
 # ------------------------------------------------------------------
 
+def make_group_decision(encounter_type, group_members):
+    if encounter_type == 'zombie':
+        fight_chance = sum(member.win_xp for member in group_members) / len(group_members)
+        flee_chance = sum(member.esc_xp for member in group_members) / len(group_members)
+        return 'fight' if fight_chance > flee_chance else 'flee'
+
 
 class Being:
     last_id = 0
 
-    def __init__(self, x, y, z, resources, is_zombie=False, esc_xp=0, win_xp=0, love_xp=0, war_xp=0, lifespan_z=10,
-                 lifespan_h=0):
+    def __init__(self, x, y, z, resources, grid, is_zombie=False, esc_xp=0, win_xp=0, love_xp=0, war_xp=0,
+                 lifespan_z=10, lifespan_h=0, group=None):
+        self.group = group
         Being.last_id += 1
         self.id = Being.last_id
         self.x = x
         self.y = y
         self.z = z
+        self.grid = grid
         self.lifespan_h = lifespan_h
         self.resources = resources  # relevant only for humans
         self.is_zombie = is_zombie
@@ -82,13 +90,8 @@ class Being:
         self.war_xp = war_xp
         self.lifespan_z = lifespan_z  # Relevant only for zombies
         self.is_active = True
-        self.zh_kd = 0  # zombie kills as human
-        self.hh_kd = 0  # human kills as human
-        self.hz_kd = 0  # human kills as zombie
-        self.theft = 0
-        self.z_enc = 0
-        self.h_enc = 0
-        self.path = []
+        self.grp_mbrs = set()  # Group members' IDs
+        ...
 
     def move_towards_resource_point(self, resource_points):
         # Find the closest resource point
@@ -101,7 +104,39 @@ class Being:
         dy = dy // abs(dy) if dy != 0 else 0
         return dx, dy
 
-    def move(self, dx, dy, grid, resource_points=set()):
+    def handle_love_event(self, other):
+        """Handle a love event with another being, possibly resulting in group formation or merging."""
+        if not self.group and not other.group:
+            # Neither being is part of a group; create a new group and add both
+            new_group = Group()
+            new_group.add_member(self)
+            new_group.add_member(other)
+            self.group = other.group = new_group
+        elif self.group and not other.group:
+            # Only the current being is part of a group; add the other being to this group
+            self.group.add_member(other)
+            other.group = self.group
+        elif not self.group and other.group:
+            # Only the other being is part of a group; add the current being to that group
+            other.group.add_member(self)
+            self.group = other.group
+        elif self.group and other.group and self.group != other.group:
+            # Both beings are part of different groups; check for shared members
+            shared_members = set(self.group.members.keys()) & set(other.group.members.keys())
+            if len(shared_members) >= 3:
+                # Merge the groups if they share 3 or more members
+                self.merge_groups(other.group)
+
+    def merge_groups(self, other_group):
+        """Merge the current being's group with another group."""
+        # Merge members from other_group into self.group
+        for member_id, member in other_group.members.items():
+            self.group.add_member(member)
+            member.group = self.group
+
+    def move(self, dx, dy, grid, resource_points=None):
+        if resource_points is None:
+            resource_points = set()
         if not self.is_zombie and resource_points:
             # As resources diminish, increase probability of moving towards resource point
             resource_based_prob = (10 - self.resources) / 10  # Adjust the denominator based on max resources
@@ -113,8 +148,6 @@ class Being:
             current_z = grid.get_elev_at(self.x, self.y)
             new_z = grid.get_elev_at(new_x, new_y)
 
-
-        # Example: Logging resource replenishment at a resource point
         if (self.x, self.y) in resource_points:
             replenished_amount = min(10 - self.resources, 10)
             self.resources += replenished_amount
@@ -216,9 +249,46 @@ class Being:
             self.encounter_as_zombie(other)
         else:
             if other.is_zombie:
-                self.encounter_zombie(other)
+                decision = make_group_decision('zombie')
+                if decision == 'fight':
+                    self.fight_zombie(other)
+                elif decision == 'flee':
+                    self.flee_zombie()
             else:
-                self.encounter_human(other)
+                # For human-human encounters, consider forming groups or other interactions
+                self.interact_with_human(other)
+
+    def fight_zombie(self, zombie, group_members):
+        group_combat_xp = sum(member.win_xp for member in group_members)
+        personal_combat_xp = self.win_xp
+        success_chance = (personal_combat_xp + group_combat_xp) / (zombie.win_xp + 1)
+
+        if random.random() < success_chance:
+            zombie.is_active = False  # Zombie defeated
+            self.win_xp += 1  # Increase personal combat experience
+            for member in group_members:
+                member.win_xp += 0.5  # Increase group members' combat experience
+
+    def flee_zombie(self, group_members):
+        group_escape_xp = sum(member.esc_xp for member in group_members)
+        personal_escape_xp = self.esc_xp
+        success_chance = (personal_escape_xp + group_escape_xp) / 10.0  # Example denominator
+
+        if random.random() < success_chance:
+            # Logic for successful fleeing (e.g., moving to a safe location)
+            self.esc_xp += 1  # Increase personal escape experience
+            for member in group_members:
+                member.esc_xp += 0.5  # Increase group members' escape experience
+
+    def interact_with_human(self, other_human, group_members):
+        # Logic for human-human interaction
+        if self.resources < 5 and other_human.resources > 5:
+            shared_resources = (self.resources + other_human.resources) / 2
+            self.resources = other_human.resources = shared_resources
+        elif not self.grp_mbrs.intersection(other_human.grp_mbrs):
+            self.join_group(other_human)
+            for member in group_members:
+                member.love_xp += 0.5  # Example of increasing love experience
 
     def encounter_as_zombie(self, other):
         if not other.is_zombie:  # If the other being is not a zombie
@@ -233,7 +303,7 @@ class Being:
                 # Human gets infected and becomes a zombie
                 other.is_zombie = True
                 self.lifespan_z += 3  # The infecting zombie's lifespan increases
-                self.hz_kd += 1  # Increment the count of humans killed as a zombie-MAY NEED CORRECTION?
+                # self.hz_kd += 1  # Increment the count of humans killed as a zombie-MAY NEED CORRECTION?
 
                 enc_log_instance = EncounterLog()
 
@@ -254,7 +324,7 @@ class Being:
 
         if outcome == 'escape':
             self.esc_xp += 1  # Gain escape experience
-            self.z_enc += 1
+            # self.z_enc += 1
             enc_log_instance = EncounterLog()
             enc_log_instance.add_record(
                 EncounterRecord(epoch=Epoch.get_current_epoch(),
@@ -283,7 +353,7 @@ class Being:
             )
             # kill the zombie
             zombie.is_active = False
-            self.zh_kd += 1
+            # self.zh_kd += 1
             enc_log_instance = EncounterLog()
             enc_log_instance.add_record(
                 EncounterRecord(epoch=Epoch.get_current_epoch(),
@@ -310,186 +380,87 @@ class Being:
                                 z=self.z)
             )
 
-        self.z_enc += 1
+        # self.z_enc += 1
 
     def encounter_human(self, other_human):
-        # Decide the outcome: love or war, ensuring weights are never zero by adding a small value
+        # Decide the outcome of the encounter: 'love' or 'war'
         outcome = random.choices(['love', 'war'], weights=[self.love_xp + 0.1, self.war_xp + 0.1])[0]
-        # self_id = f"{self.id}"
-        # other_human_id = f"{other_human.id}"
+
         if outcome == 'love':
-            self.love_xp += random.randint(0, (other_human.love_xp + 1))  # Gain love experience
+            # Increase love experience points
+            self.love_xp += random.randint(0, (other_human.love_xp + 1))
             other_human.love_xp += 1
 
-            # Calculate average resources and the resource change for each being
+            # Calculate and share resources evenly
             avg_resources = (self.resources + other_human.resources) / 2
-            self_resource_change = avg_resources - self.resources
-            other_resource_change = avg_resources - other_human.resources
-
-            # Update resources to the average for both beings
+            resource_change_self = avg_resources - self.resources
+            resource_change_other = avg_resources - other_human.resources
             self.resources = other_human.resources = avg_resources
 
-            # Log resource change for self
+            # Log resource changes
             resource_log_instance = ResourceLog()
             resource_log_instance.add_record(
-                ResourceRecord(
-                    epoch=Epoch.get_current_epoch(),
-                    day=DayTracker.get_current_day(),
-                    being_id=self.id,
-                    resource_change=self_resource_change,  # Positive if gained, negative if lost
-                    current_resources=self.resources,  # Current resources after the change
-                    reason="LUV"  # Reason for the resource change
-                )
-            )
-
-            # Log resource change for the other human
+                ResourceRecord(epoch=Epoch.get_current_epoch(), day=DayTracker.get_current_day(),
+                               being_id=self.id, resource_change=resource_change_self,
+                               current_resources=self.resources, reason="LUV"))
             resource_log_instance.add_record(
-                ResourceRecord(
-                    epoch=Epoch.get_current_epoch(),
-                    day=DayTracker.get_current_day(),
-                    being_id=other_human.id,
-                    resource_change=other_resource_change,  # Positive if gained, negative if lost
-                    current_resources=other_human.resources,  # Current resources after the change
-                    reason="LUV"  # Reason for the resource change
-                )
-            )
+                ResourceRecord(epoch=Epoch.get_current_epoch(), day=DayTracker.get_current_day(),
+                               being_id=other_human.id, resource_change=resource_change_other,
+                               current_resources=other_human.resources, reason="LUV"))
 
-            # Increase love encounter count
-            self.h_enc += 1
+            # Handle group logic for love event (group formation or merging)
+            self.handle_love_event(other_human)
 
-            # Log the encounter for self (assuming similar for other_human)
+            # Log the 'love' encounter
             enc_log_instance = EncounterLog()
             enc_log_instance.add_record(
-                EncounterRecord(
-                    epoch=Epoch.get_current_epoch(),
-                    day=DayTracker.get_current_day(),
-                    being_id=self.id,
-                    other_being_id=other_human.id,
-                    encounter_type="LUV",
-                    x=self.x,
-                    y=self.y,
-                    z=self.z
-                )
-            )
+                EncounterRecord(epoch=Epoch.get_current_epoch(), day=DayTracker.get_current_day(),
+                                being_id=self.id, other_being_id=other_human.id,
+                                encounter_type="LUV", x=self.x, y=self.y, z=self.z))
 
-
-        else:
+        elif outcome == 'war':
+            # Determine the outcome of the conflict based on war experience points
             if self.war_xp > other_human.war_xp:
-                self.war_xp += random.randint(0, (other_human.war_xp + 1))  # Gain war experience
-                self.resources += other_human.resources  # Take all resources from the defeated
+                # Current being wins and takes resources from the other being
+                self.war_xp += random.randint(0, (other_human.war_xp + 1))
+                self.resources += other_human.resources
+                other_human.resources = 0  # The defeated loses all resources
+                other_human.is_zombie = True  # Optionally, the defeated becomes a zombie
+
+                # Log the resource change and the 'war' encounter
                 resource_log_instance = ResourceLog()
                 resource_log_instance.add_record(
-                    ResourceRecord(
-                        epoch=Epoch.get_current_epoch(),
-                        day=DayTracker.get_current_day(),
-                        being_id=self.id,
-                        resource_change=+other_human.resources,  # Amount of resources changed
-                        current_resources=self.resources,  # Current resources after the change
-                        reason="WAR"  # Reason for the resource change
-                    )
-                )
-                other_human.resources = 0  # The defeated loses all resources
-                other_human.is_zombie = True  # The defeated becomes a zombie
-                self.hh_kd += 1
-                self.h_enc += 1
+                    ResourceRecord(epoch=Epoch.get_current_epoch(), day=DayTracker.get_current_day(),
+                                   being_id=self.id, resource_change=other_human.resources,
+                                   current_resources=self.resources, reason="WAR"))
                 enc_log_instance = EncounterLog()
                 enc_log_instance.add_record(
-                    EncounterRecord(epoch=Epoch.get_current_epoch(),
-                                    day=DayTracker.get_current_day(),
-                                    being_id=self.id,
-                                    other_being_id=other_human.id,
-                                    encounter_type="WAR",
-                                    x=self.x,
-                                    y=self.y,
-                                    z=self.z)
-                )
+                    EncounterRecord(epoch=Epoch.get_current_epoch(), day=DayTracker.get_current_day(),
+                                    being_id=self.id, other_being_id=other_human.id,
+                                    encounter_type="WAR", x=self.x, y=self.y, z=self.z))
             else:
-                if self.war_xp == other_human.war_xp:
-                    theft_outcome = random.choices(['theft', 'war'], weights=[self.theft + 0.1, self.war_xp + 0.1])[0]
-                    if theft_outcome == 'theft':
-                        self.theft += 1
-                        amount = random.randint(0, round(other_human.resources + 1))
-                        self.resources += amount
-                        resource_log_instance = ResourceLog()
-                        resource_log_instance.add_record(
-                            ResourceRecord(
-                                epoch=Epoch.get_current_epoch(),
-                                day=DayTracker.get_current_day(),
-                                being_id=self.id,
-                                resource_change=+amount,  # Amount of resources changed
-                                current_resources=self.resources,  # Current resources after the change
-                                reason="STL"  # Reason for the resource change
-                            )
-                        )
-                        other_human.resources -= amount
-                        resource_log_instance = ResourceLog()
-                        resource_log_instance.add_record(
-                            ResourceRecord(
-                                epoch=Epoch.get_current_epoch(),
-                                day=DayTracker.get_current_day(),
-                                being_id=other_human.id,
-                                resource_change=-amount,  # Amount of resources changed
-                                current_resources=other_human.resources,  # Current resources after the change
-                                reason="ROB"  # Reason for the resource change
-                            )
-                        )
-                        enc_log_instance = EncounterLog()
-                        enc_log_instance.add_record(
-                            EncounterRecord(epoch=Epoch.get_current_epoch(),
-                                            day=DayTracker.get_current_day(),
-                                            being_id=self.id,
-                                            other_being_id=other_human.id,
-                                            encounter_type="STL",
-                                            x=self.x,
-                                            y=self.y,
-                                            z=self.z)
-                        )
-                        if other_human.theft > 1:
-                            other_human.theft -= 1
-                            enc_log_instance = EncounterLog()
-                            enc_log_instance.add_record(
-                                EncounterRecord(epoch=Epoch.get_current_epoch(),
-                                                day=DayTracker.get_current_day(),
-                                                being_id=self.id,
-                                                other_being_id=other_human.id,
-                                                encounter_type="ROB",
-                                                x=self.x,
-                                                y=self.y,
-                                                z=self.z)
-                            )
-                        else:
-                            other_human.theft = 0
-                            other_human.is_zombie = True
+                # Handle the case where the other being wins or the conflict is unresolved
+                # This can include resource theft, retreats, or both becoming zombies in a stalemate
+                # Implement according to your simulation's rules
 
-                    else:
-                        self.war_xp += random.randint(0, (other_human.war_xp + 1))  # Gain war experience
-                        self.resources += other_human.resources  # Take all resources from the defeated
-                        resource_log_instance = ResourceLog()
-                        resource_log_instance.add_record(
-                            ResourceRecord(
-                                epoch=Epoch.get_current_epoch(),
-                                day=DayTracker.get_current_day(),
-                                being_id=self.id,
-                                resource_change=+other_human.resources,  # Amount of resources changed
-                                current_resources=self.resources,  # Current resources after the change
-                                reason="WAR"  # Reason for the resource change
-                            )
-                        )
-                        other_human.resources = 0  # The defeated loses all resources
-                        other_human.is_zombie = True  # The defeated becomes a zombie
-                        self.hh_kd += 1
-                        self.h_enc += 1
-                        enc_log_instance = EncounterLog()
-                        enc_log_instance.add_record(
-                            EncounterRecord(epoch=Epoch.get_current_epoch(),
-                                            day=DayTracker.get_current_day(),
-                                            being_id=self.id,
-                                            other_being_id=other_human.id,
-                                            encounter_type="WAR",
-                                            x=self.x,
-                                            y=self.y,
-                                            z=self.z)
-                        )
+                # Example: unresolved conflict, no changes made
+                pass
+
+    def join_group(self, other):
+        self.grp_mbrs.add(other.id)
+        other.grp_mbrs.add(self.id)
+
+    def leave_group(self, other):
+        self.grp_mbrs.discard(other.id)
+        other.grp_mbrs.discard(self.id)
+
+    def share_resources(self):
+        if self.grp_mbrs:
+            total_resources = self.resources + sum(self.grid.beings[member_id].resources for member_id in self.grp_mbrs)
+            avg_resources = total_resources / (len(self.grp_mbrs) + 1)
+            self.resources = avg_resources
+            for member_id in self.grp_mbrs:
+                self.grid.beings[member_id].resources = avg_resources
 
     def update_status(self):
         if self.is_zombie:
@@ -510,11 +481,84 @@ class Being:
 # -----------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------
 
+
+class Group:
+    last_group_id = 0
+
+    def __init__(self):
+        Group.last_group_id += 1
+        self.group_id = Group.last_group_id
+        self.members = {}  # Dictionary to store member Being IDs as keys
+        self.total_encounters = 0
+        self.victories = 0
+        self.defeats = 0
+        self.resource_sharing_events = 0
+
+    def add_member(self, being):
+        """Add a Being to the group."""
+        self.members[being.id] = being
+
+    def remove_member(self, being_id):
+        """Remove a Being from the group by ID."""
+        if being_id in self.members:
+            del self.members[being_id]
+
+    def group_encounter(self):
+        """Increment the total encounters counter."""
+        self.total_encounters += 1
+
+    def group_victory(self):
+        """Increment the group victories counter."""
+        self.victories += 1
+
+    def group_defeat(self):
+        """Increment the group defeats counter."""
+        self.defeats += 1
+
+    def resource_shared(self):
+        """Increment the resource sharing events counter."""
+        self.resource_sharing_events += 1
+
+    def display_metrics(self):
+        """Print out the group metrics."""
+        print(f"Group {self.group_id} Metrics:")
+        print(f"Total Members: {len(self.members)}")
+        print(f"Total Encounters: {self.total_encounters}")
+        print(f"Victories: {self.victories}")
+        print(f"Defeats: {self.defeats}")
+        print(f"Resource Sharing Events: {self.resource_sharing_events}")
+
+
+# -----------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------
+
+
+class SocialNetwork:
+    def __init__(self):
+        self.network = nx.Graph()
+
+    def add_being(self, being):
+        self.network.add_node(being.id, being=being)
+
+    def form_relationship(self, id1, id2):
+        self.network.add_edge(id1, id2)
+
+    def remove_relationship(self, id1, id2):
+        self.network.remove_edge(id1, id2)
+
+    def get_group_members(self, being_id):
+        return list(self.network.neighbors(being_id))
+
+
+# -----------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------
+
+
 class Grid:
-    def __init__(self, width, height,resource_points=None):
+    def __init__(self, width, height, resource_points=None):
         self.width = width
         self.height = height
-        self.beings = []
+        self.beings = {}
         self.rmv_beings = 0
         self.occupied_positions = set()
         self.surface = None
@@ -538,7 +582,7 @@ class Grid:
             being.x = random.randint(0, self.width - 1)
             being.y = random.randint(0, self.height - 1)
         self.occupied_positions.add((being.x, being.y))  # Mark the new position as occupied
-        self.beings.append(being)
+        self.beings[being.id] = being  # Add beings by their ID
 
     def move_being(self, being):
         h_move = [-4, -3, -2, -1, 0, 1, 2, 3, 4]
@@ -566,10 +610,10 @@ class Grid:
             self.occupied_positions.add((being.x, being.y))
 
     def simulate_day(self):
-        for being in list(self.beings):  # using a list copy here to avoid issues while modifying the list
+        for being in list(self.beings.values()):  # Iterate over dictionary values
             if being.is_active:
                 self.move_being(being)
-                for other in list(self.beings):
+                for other in list(self.beings.values()):  # Iterate over dictionary values
                     if being.is_active and other.is_active and being != other:
                         if abs(being.x - other.x) <= 1 and abs(being.y - other.y) <= 1:
                             being.encounter(other)
@@ -579,13 +623,14 @@ class Grid:
         self.remove_inactive_beings()
 
     def remove_inactive_beings(self):
-        self.beings = [being for being in self.beings if being.is_active]
-        # add to the number of beings removed the number self.beings list gains
-        self.occupied_positions = {(being.x, being.y) for being in self.beings}
+        inactive_ids = [being_id for being_id, being in self.beings.items() if not being.is_active]
+        for being_id in inactive_ids:
+            del self.beings[being_id]  # Remove inactive beings by ID
+        self.occupied_positions = {(being.x, being.y) for being in self.beings.values()}  # Update occupied positions
 
     def count_humans_and_zombies(self):
-        humans = sum(1 for being in self.beings if not being.is_zombie and being.is_active)
-        zombies = sum(1 for being in self.beings if being.is_zombie and being.is_active)
+        humans = sum(1 for being in self.beings.values() if not being.is_zombie and being.is_active)
+        zombies = sum(1 for being in self.beings.values() if being.is_zombie and being.is_active)
         return humans, zombies
 
     # append the surface generated in surface_noise.py to the grid
@@ -603,27 +648,6 @@ class Grid:
 # -----------------------------------------------------------------------------------------
 
 
-# class Record:
-#     def __init__(self, epoch, day, being_id, event_type, description, x, y, z):
-#         self.epoch = epoch
-#         self.day = day
-#         self.being_id = being_id
-#         self.event_type = event_type
-#         self.description = description
-#         self.x = x
-#         self.y = y
-#         self.z = z
-#
-#     def __repr__(self):
-#         return (f"Epoch: {self.epoch}, "
-#                 f"Day {self.day}, "
-#                 f"ID:{self.being_id}, "
-#                 f"Type: {self.event_type}, "
-#                 f"Desc: {self.description},"
-#                 f"Z: {self.z}")
-
-# ------------------------------------------------------------------
-
 
 class EncounterRecord:
     def __init__(self, epoch, day, being_id, other_being_id, encounter_type, x, y, z):
@@ -635,7 +659,6 @@ class EncounterRecord:
         self.x = x,
         self.y = y,
         self.z = z
-
 
 
 # -----------------------------------------------------------------------------------------
@@ -707,14 +730,12 @@ class MovementRecord:
         self.end_x = end_x
         self.end_y = end_y
 
-    #get is zombie status
+    # get is zombie status
     def get_is_zombie(self, being_id):
         for being in self.beings:
             if being.id == being_id:
                 return being.is_zombie
         return False
-
-
 
 
 # -----------------------------------------------------------------------------------------
