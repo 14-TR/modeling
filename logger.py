@@ -1,12 +1,14 @@
+# DEPRECATED
 class Record:
-    def __init__(self, day, being_id, event_type, description):
-        self.day = day
+    def __init__(self, being_id, event_type, description):
+        self.epoch = Epoch.get_current_epoch()
+        self.day = DayTracker.get_current_day()
         self.being_id = being_id
         self.event_type = event_type
         self.description = description
 
     def __repr__(self):
-        return f"Day {self.day}, ID:{self.being_id}, {self.event_type}, {self.description}"
+        return f"Epoch: {self.epoch}, Day {self.day}, ID:{self.being_id}, {self.event_type}, {self.description}"
 
 #------------------------------------------------------------------
 
