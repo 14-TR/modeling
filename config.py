@@ -2,7 +2,7 @@
 [W,H] = [100,100]
 
 #simulation count
-EPS = 384
+EPS = 1
 #simulation days
 days = 365
 #number of humans and zombies
@@ -15,8 +15,8 @@ num_zombies = 1
 # z = 5
 
 #make noise parameters so it is a steeper slope
-vi = 0.01
-vj = 0.01
+vi = 0.05
+vj = 0.05
 z = 5
 
 

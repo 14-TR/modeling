@@ -4,11 +4,15 @@ import os
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 
+from analysis import extract_enc_data_from_df
 from classes import Epoch, DayTracker, Grid, MovementLog, EncounterLog, ResourceLog
 from config import W, H, vi, vj, z, EPS, days, num_humans, num_zombies
-from analysis import extract_enc_data_from_df, perform_dbscan_clustering
-from mapping import generate_heatmap_by_enc_type, generate_heatmap_from_df
+from mapping import generate_heatmap_from_df
 from sim import run_simulation, encounters_to_dataframe, movements_to_dataframe, resources_to_dataframe
 from surface_noise import generate_noise
 
@@ -16,8 +20,8 @@ from surface_noise import generate_noise
 def main():
     global resource_points, grid
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    # output_folder = f"C:/Users/tingram/Desktop/Captains Log/UWYO/GIT/sims/sim__{timestamp}"
-    output_folder = f"C:/Users/TR/Desktop/z/GIT/sims/sim__{timestamp}"
+    output_folder = f"C:/Users/tingram/Desktop/Captains Log/UWYO/GIT/sims/sim__{timestamp}"
+    # output_folder = f"C:/Users/TR/Desktop/z/GIT/sims/sim__{timestamp}"
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -65,7 +69,6 @@ def main():
     print(f"Movement logs saved to {mov_csv_path}")
 
     # Export resource logs to CSV
-    res_df = resources_to_dataframe(ResourceLog())
     res_csv_path = os.path.join(output_folder, 'resources.csv')
     res_df.to_csv(res_csv_path, index=False)
     print(f"Resource logs saved to {res_csv_path}")
@@ -104,6 +107,42 @@ def main():
     elevation_surface_filename = "elevation_surface.png"
     plt.savefig(os.path.join(output_folder, elevation_surface_filename))
     plt.show()
+
+
+
+    # Load your data into a pandas DataFrame
+    # enc_df = pd.read_csv('path_to_csv')
+
+    # Encode the categorical 'Encounter Type' variable
+    # Initialize the LabelEncoder
+    label_encoder = LabelEncoder()
+
+    # Fit the encoder to the 'Encounter Type' data and transform it to numerical
+    enc_df['Encounter Type Encoded'] = label_encoder.fit_transform(enc_df['encounter_type'])
+
+    # Now your 'Encounter Type' has been encoded to 'Encounter Type Encoded' as numbers
+    # Features (Resource Distance) and Target Variable (Encoded Encounter Types)
+    X = enc_df[['Resource Distance']]  # Predictor
+    y = enc_df['Encounter Type Encoded']  # Response
+
+    # Split the dataset into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Create a logistic regression model
+    # For multinomial, 'lbfgs' solver is recommended
+    model = LogisticRegression(multi_class='multinomial', solver='lbfgs', max_iter=200)
+
+    # Fit the model with the training data
+    model.fit(X_train, y_train)
+
+    # Predict the test set results
+    y_pred = model.predict(X_test)
+
+    # Print the classification report
+    print(classification_report(y_test, y_pred))
+
+    # inverse transform encoded labels back to the original labels
+    y_pred_labels = label_encoder.inverse_transform(y_pred)
 
 
 if __name__ == "__main__":

@@ -122,13 +122,13 @@ def encounters_to_dataframe(encounter_log):
         'Encounter Type': record.encounter_type,  # Ensure this line correctly references the attribute
         'X': record.x,
         'Y': record.y,
-        'Z': record.z
+        'Z': record.z,
+        'Resource Distance': record.resource_distance,
     } for record in encounter_log.records]
     df = pd.DataFrame(data)
     # If you're renaming columns, ensure it's done correctly
     df.rename(columns={'Encounter Type': 'encounter_type'}, inplace=True)
     return df
-
 
 
 def resources_to_dataframe(resource_log):
@@ -180,7 +180,7 @@ def write_logs_to_dataframes():
 def extract_movement_human(logs):
     movement_data = []
     for record in logs.records:
-        #use the get_is_zombie method to check if the being is a zombie
+        # use the get_is_zombie method to check if the being is a zombie
         if not record.being_id.get_is_zombie():
             movement_data.append((record.x, record.y))
     return movement_data

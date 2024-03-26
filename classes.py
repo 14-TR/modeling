@@ -113,7 +113,6 @@ class Being:
             current_z = grid.get_elev_at(self.x, self.y)
             new_z = grid.get_elev_at(new_x, new_y)
 
-
         # Example: Logging resource replenishment at a resource point
         if (self.x, self.y) in resource_points:
             replenished_amount = min(10 - self.resources, 10)
@@ -211,21 +210,21 @@ class Being:
 
         # placeholder logic if the being can't move (e.g., not enough resources)
 
-    def encounter(self, other):
+    def encounter(self, other, grid):
         if self.is_zombie:
-            self.encounter_as_zombie(other)
+            self.encounter_as_zombie(other, grid)
         else:
             if other.is_zombie:
-                self.encounter_zombie(other)
+                self.encounter_zombie(other, grid)
             else:
-                self.encounter_human(other)
+                self.encounter_human(other, grid)
 
-    def encounter_as_zombie(self, other):
+    def encounter_as_zombie(self, other, grid):
         if not other.is_zombie:  # If the other being is not a zombie
             # The chance of getting infected is based on the human's ability to escape or win, see weights below
             is_infected = random.choices(
                 [True, False],  # True for infected, False for not infected
-                weights=[.5, other.esc_xp + other.win_xp]
+                weights=[.2, other.esc_xp + other.win_xp]
                 # Weights: infection vs. escape or win, this similar structure is used throughout
             )
 
@@ -236,6 +235,7 @@ class Being:
                 self.hz_kd += 1  # Increment the count of humans killed as a zombie-MAY NEED CORRECTION?
 
                 enc_log_instance = EncounterLog()
+                resource_distance = grid.distance_to_nearest_resource(self.x, self.y)
 
                 enc_log_instance.add_record(
                     EncounterRecord(epoch=Epoch.get_current_epoch(),
@@ -245,10 +245,11 @@ class Being:
                                     encounter_type="INF",
                                     x=self.x,
                                     y=self.y,
-                                    z=self.z)
+                                    z=self.z,
+                                    resource_distance=resource_distance)
                 )
 
-    def encounter_zombie(self, zombie):
+    def encounter_zombie(self, zombie, grid):
         # Escape, Win (kill), or be turned into zombie.
         outcome = random.choices(['escape', 'win', 'infected'], weights=[self.esc_xp + 1, self.win_xp + 1, 2])[0]
 
@@ -256,6 +257,7 @@ class Being:
             self.esc_xp += 1  # Gain escape experience
             self.z_enc += 1
             enc_log_instance = EncounterLog()
+            resource_distance = grid.distance_to_nearest_resource(self.x, self.y)
             enc_log_instance.add_record(
                 EncounterRecord(epoch=Epoch.get_current_epoch(),
                                 day=DayTracker.get_current_day(),
@@ -264,7 +266,8 @@ class Being:
                                 encounter_type="ESC",
                                 x=self.x,
                                 y=self.y,
-                                z=self.z)
+                                z=self.z,
+                                resource_distance=resource_distance)
             )
         elif outcome == 'win':
             self.win_xp += random.randint(0, (zombie.win_xp + 1))  # Gain win experience
@@ -285,6 +288,7 @@ class Being:
             zombie.is_active = False
             self.zh_kd += 1
             enc_log_instance = EncounterLog()
+            resource_distance = grid.distance_to_nearest_resource(zombie.x, zombie.y)
             enc_log_instance.add_record(
                 EncounterRecord(epoch=Epoch.get_current_epoch(),
                                 day=DayTracker.get_current_day(),
@@ -293,26 +297,30 @@ class Being:
                                 encounter_type="WIN",
                                 x=self.x,
                                 y=self.y,
-                                z=self.z)
+                                z=self.z,
+                                resource_distance=resource_distance)
             )
         else:  # infected
             self.is_zombie = True
             self.lifespan_z = 10  # Reset lifespan zombie
             enc_log_instance = EncounterLog()
+            resource_distance = grid.distance_to_nearest_resource(self.x, self.y)
             enc_log_instance.add_record(
                 EncounterRecord(epoch=Epoch.get_current_epoch(),
                                 day=DayTracker.get_current_day(),
                                 being_id=zombie.id,
-                                other_being_id=zombie.id,
+                                other_being_id=self.id,
                                 encounter_type="INF",
                                 x=self.x,
                                 y=self.y,
-                                z=self.z)
+                                z=self.z,
+                                resource_distance=resource_distance
+                                )
             )
 
         self.z_enc += 1
 
-    def encounter_human(self, other_human):
+    def encounter_human(self, other_human, grid):
         # Decide the outcome: love or war, ensuring weights are never zero by adding a small value
         outcome = random.choices(['love', 'war'], weights=[self.love_xp + 0.1, self.war_xp + 0.1])[0]
         # self_id = f"{self.id}"
@@ -359,6 +367,7 @@ class Being:
 
             # Log the encounter for self (assuming similar for other_human)
             enc_log_instance = EncounterLog()
+            resource_distance = grid.distance_to_nearest_resource(self.x, self.y)
             enc_log_instance.add_record(
                 EncounterRecord(
                     epoch=Epoch.get_current_epoch(),
@@ -368,7 +377,8 @@ class Being:
                     encounter_type="LUV",
                     x=self.x,
                     y=self.y,
-                    z=self.z
+                    z=self.z,
+                    resource_distance=resource_distance
                 )
             )
 
@@ -393,6 +403,7 @@ class Being:
                 self.hh_kd += 1
                 self.h_enc += 1
                 enc_log_instance = EncounterLog()
+                resource_distance = grid.distance_to_nearest_resource(self.x, self.y)
                 enc_log_instance.add_record(
                     EncounterRecord(epoch=Epoch.get_current_epoch(),
                                     day=DayTracker.get_current_day(),
@@ -401,7 +412,9 @@ class Being:
                                     encounter_type="WAR",
                                     x=self.x,
                                     y=self.y,
-                                    z=self.z)
+                                    z=self.z,
+                                    resource_distance=resource_distance
+                                    )
                 )
             else:
                 if self.war_xp == other_human.war_xp:
@@ -434,6 +447,7 @@ class Being:
                             )
                         )
                         enc_log_instance = EncounterLog()
+                        resource_distance = grid.distance_to_nearest_resource(self.x, self.y)
                         enc_log_instance.add_record(
                             EncounterRecord(epoch=Epoch.get_current_epoch(),
                                             day=DayTracker.get_current_day(),
@@ -442,20 +456,24 @@ class Being:
                                             encounter_type="STL",
                                             x=self.x,
                                             y=self.y,
-                                            z=self.z)
+                                            z=self.z,
+                                            resource_distance=resource_distance
+                                            )
                         )
                         if other_human.theft > 1:
                             other_human.theft -= 1
                             enc_log_instance = EncounterLog()
+                            resource_distance = grid.distance_to_nearest_resource(other_human.x, other_human.y)
                             enc_log_instance.add_record(
                                 EncounterRecord(epoch=Epoch.get_current_epoch(),
                                                 day=DayTracker.get_current_day(),
-                                                being_id=self.id,
-                                                other_being_id=other_human.id,
+                                                being_id=other_human.id,
+                                                other_being_id=self.id,
                                                 encounter_type="ROB",
-                                                x=self.x,
-                                                y=self.y,
-                                                z=self.z)
+                                                x=other_human.x,
+                                                y=other_human.y,
+                                                z=other_human.z,
+                                                resource_distance=resource_distance)
                             )
                         else:
                             other_human.theft = 0
@@ -480,6 +498,7 @@ class Being:
                         self.hh_kd += 1
                         self.h_enc += 1
                         enc_log_instance = EncounterLog()
+                        resource_distance = grid.distance_to_nearest_resource(other_human.x, other_human.y)
                         enc_log_instance.add_record(
                             EncounterRecord(epoch=Epoch.get_current_epoch(),
                                             day=DayTracker.get_current_day(),
@@ -488,7 +507,9 @@ class Being:
                                             encounter_type="WAR",
                                             x=self.x,
                                             y=self.y,
-                                            z=self.z)
+                                            z=self.z,
+                                            resource_distance=resource_distance
+                                            )
                         )
 
     def update_status(self):
@@ -511,7 +532,7 @@ class Being:
 # -----------------------------------------------------------------------------------------
 
 class Grid:
-    def __init__(self, width, height,resource_points=None):
+    def __init__(self, width, height, resource_points=None):
         self.width = width
         self.height = height
         self.beings = []
@@ -519,6 +540,13 @@ class Grid:
         self.occupied_positions = set()
         self.surface = None
         self.resource_points = resource_points if resource_points else set()
+
+    def distance_to_nearest_resource(self, x, y):
+        # Calculate the distance to the nearest resource point from position (x, y)
+        if not self.resource_points:
+            return None  # or a large number to indicate no resource points are available
+        distances = [((rx - x) ** 2 + (ry - y) ** 2) ** 0.5 for rx, ry in self.resource_points]
+        return min(distances)
 
     def generate_resource_points(self, num_points):
         points = set()
@@ -572,7 +600,7 @@ class Grid:
                 for other in list(self.beings):
                     if being.is_active and other.is_active and being != other:
                         if abs(being.x - other.x) <= 1 and abs(being.y - other.y) <= 1:
-                            being.encounter(other)
+                            being.encounter(other, self)
                 being.update_status()
 
         # Now remove inactive beings
@@ -626,16 +654,16 @@ class Grid:
 
 
 class EncounterRecord:
-    def __init__(self, epoch, day, being_id, other_being_id, encounter_type, x, y, z):
+    def __init__(self, epoch, day, being_id, other_being_id, encounter_type, x, y, z, resource_distance):
         self.epoch = epoch
         self.day = day
         self.being_id = being_id
         self.other_being_id = other_being_id
         self.encounter_type = encounter_type
-        self.x = x,
-        self.y = y,
+        self.x = x
+        self.y = y
         self.z = z
-
+        self.resource_distance = resource_distance
 
 
 # -----------------------------------------------------------------------------------------
@@ -707,14 +735,12 @@ class MovementRecord:
         self.end_x = end_x
         self.end_y = end_y
 
-    #get is zombie status
+    # get is zombie status
     def get_is_zombie(self, being_id):
         for being in self.beings:
             if being.id == being_id:
                 return being.is_zombie
         return False
-
-
 
 
 # -----------------------------------------------------------------------------------------
