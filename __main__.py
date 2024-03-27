@@ -25,8 +25,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from classes import Epoch, DayTracker, EncounterLog, ResourceLog, MovementLog, Grid
-from config import W, H, EPS, vi, vj, z, num_humans, num_zombies, days
+from config import W, H, EPS, vi, vj, z, num_humans, num_zombies, days, resource_threshold
 from mapping import generate_heatmap
+from group import GroupManager
 #########################################################
 # imports
 from sim import run_simulation, encounters_to_dataframe, movements_to_dataframe, resources_to_dataframe, \
@@ -55,7 +56,7 @@ def main():
         # Generate resource points for this simulation run
         # Using the instance of Grid to call the method
         resource_points = grid.generate_resource_points(num_points=4)
-
+        group = GroupManager()
         # Run the simulation with the generated surface and resource points
         simulation_result = run_simulation(days, num_humans, num_zombies, surf, resource_points)
         results.append(simulation_result)

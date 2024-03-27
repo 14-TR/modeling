@@ -22,6 +22,7 @@ import pandas as pd
 
 from classes import Being, Grid, DayTracker, EncounterLog, MovementLog, ResourceLog, Epoch
 from config import W, H
+from modeling.group import GroupManager
 
 
 def calculate_metrics(grid, attribute_name):
@@ -43,7 +44,7 @@ def calculate_metrics(grid, attribute_name):
 
 def run_simulation(num_days, num_humans, num_zombies, surf, resource_points):
     # resource_points = Grid.generate_resource_points(W, H, num_points=4)  # Define this function to generate points
-
+    group = GroupManager()
     grid = Grid(width=W, height=H, resource_points=resource_points)
     grid.append_surface(surf)
     # Add humans
@@ -64,7 +65,7 @@ def run_simulation(num_days, num_humans, num_zombies, surf, resource_points):
 
     # Runs sim for spec # of days
     for day in range(1, num_days + 1):
-        grid.simulate_day()
+        grid.simulate_day(group)
         grid.remove_inactive_beings()
         humans, zombies = grid.count_humans_and_zombies()
         DayTracker.increment_day()
@@ -153,6 +154,18 @@ def movements_to_dataframe(movement_log):
         'End X': record.end_x,
         'End Y': record.end_y
     } for record in movement_log.records]
+    return pd.DataFrame(data)
+
+
+def groups_to_dataframe(group_log):
+    data = [{
+        'Group ID': record.group_id,
+        'Epoch': record.epoch,
+        'Start Day': record.start_day,
+        'End Day': record.end_day,
+        'Members Added': record.members_added,
+        'Members Lost': record.members_lost,
+    } for record in group_log.records]
     return pd.DataFrame(data)
 
 

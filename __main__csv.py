@@ -13,7 +13,9 @@ from analysis import extract_enc_data_from_df
 from classes import Epoch, DayTracker, Grid, MovementLog, EncounterLog, ResourceLog
 from config import W, H, vi, vj, z, EPS, days, num_humans, num_zombies
 from mapping import generate_heatmap_from_df
-from sim import run_simulation, encounters_to_dataframe, movements_to_dataframe, resources_to_dataframe
+from modeling.group import GroupLog
+from sim import run_simulation, encounters_to_dataframe, movements_to_dataframe, resources_to_dataframe, \
+    groups_to_dataframe
 from surface_noise import generate_noise
 
 
@@ -52,11 +54,13 @@ def main():
     enc_log_instance = EncounterLog()
     move_log_instance = MovementLog()
     res_log_instance = ResourceLog()
+    grp_log_instance = GroupLog()
 
     # Directly use the records from the encounter log instance if encounters_to_dataframe expects a list of dictionaries
     enc_df = encounters_to_dataframe(enc_log_instance)  # Assuming encounters_to_dataframe can handle this format
     mov_df = movements_to_dataframe(move_log_instance)
     res_df = resources_to_dataframe(res_log_instance)
+    grp_df = groups_to_dataframe(grp_log_instance)
 
     # print df header
     # print(enc_df.head())
@@ -72,6 +76,10 @@ def main():
     res_csv_path = os.path.join(output_folder, 'resources.csv')
     res_df.to_csv(res_csv_path, index=False)
     print(f"Resource logs saved to {res_csv_path}")
+
+    grp_csv_path = os.path.join(output_folder, 'groups.csv')
+    grp_df.to_csv(grp_csv_path, index=False)
+    print(f"Group logs saved to {grp_csv_path}")
 
     # plot heatmap of INF encounters
 

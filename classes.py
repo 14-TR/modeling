@@ -19,6 +19,9 @@ outcomes, culminating in a dataset that reflects the dynamics of this virtual ec
 #########################################################
 
 import random
+
+from modeling.config import resource_threshold
+from modeling.group import GroupManager
 from surface_noise import generate_noise
 
 
@@ -89,6 +92,23 @@ class Being:
         self.z_enc = 0
         self.h_enc = 0
         self.path = []
+        self.group = None
+
+    def turn_into_zombie(self):
+        if self.is_zombie:
+            return  # Already a zombie, no action needed
+
+        self.is_zombie = True
+
+        # If the being is part of a group, remove them from the group
+        if self.group:
+            self.group.remove_member(self)
+
+    def move(self, dx, dy, grid, resource_points=set()):
+        if self.group:
+            self.group.move_group()
+        else:
+            self.move_individual(dx, dy, grid, resource_points)
 
     def move_towards_resource_point(self, resource_points):
         # Find the closest resource point
@@ -101,7 +121,7 @@ class Being:
         dy = dy // abs(dy) if dy != 0 else 0
         return dx, dy
 
-    def move(self, dx, dy, grid, resource_points=set()):
+    def move_individual(self, dx, dy, grid, resource_points=set()):
         if not self.is_zombie and resource_points:
             # As resources diminish, increase probability of moving towards resource point
             resource_based_prob = (10 - self.resources) / 10  # Adjust the denominator based on max resources
@@ -230,7 +250,7 @@ class Being:
 
             if is_infected:
                 # Human gets infected and becomes a zombie
-                other.is_zombie = True
+                other.turn_into_zombie()
                 self.lifespan_z += 3  # The infecting zombie's lifespan increases
                 self.hz_kd += 1  # Increment the count of humans killed as a zombie-MAY NEED CORRECTION?
 
@@ -331,11 +351,24 @@ class Being:
 
             # Calculate average resources and the resource change for each being
             avg_resources = (self.resources + other_human.resources) / 2
-            self_resource_change = avg_resources - self.resources
-            other_resource_change = avg_resources - other_human.resources
-
-            # Update resources to the average for both beings
+            resource_change = avg_resources - self.resources
             self.resources = other_human.resources = avg_resources
+            current_epoch = Epoch.get_current_epoch()
+            current_day = DayTracker.get_current_day()
+            group_manager = GroupManager()
+            # Check group affiliations and act accordingly
+            if not self.group and not other_human.group:
+                # Neither being is in a group, so create a new one
+                new_group = group_manager.create_group([self, other_human], current_epoch, current_day)
+            elif self.group and not other_human.group:
+                # 'self' is in a group, add 'other_human' to it
+                self.group.add_member(other_human)
+            elif not self.group and other_human.group:
+                # 'other_human' is in a group, add 'self' to it
+                other_human.group.add_member(self)
+            elif self.group != other_human.group:
+                # Both are in different groups, merge the groups
+                group_manager.merge_groups(self.group, other_human.group)
 
             # Log resource change for self
             resource_log_instance = ResourceLog()
@@ -344,7 +377,7 @@ class Being:
                     epoch=Epoch.get_current_epoch(),
                     day=DayTracker.get_current_day(),
                     being_id=self.id,
-                    resource_change=self_resource_change,  # Positive if gained, negative if lost
+                    resource_change=resource_change,  # Positive if gained, negative if lost
                     current_resources=self.resources,  # Current resources after the change
                     reason="LUV"  # Reason for the resource change
                 )
@@ -356,7 +389,7 @@ class Being:
                     epoch=Epoch.get_current_epoch(),
                     day=DayTracker.get_current_day(),
                     being_id=other_human.id,
-                    resource_change=other_resource_change,  # Positive if gained, negative if lost
+                    resource_change=resource_change,  # Positive if gained, negative if lost
                     current_resources=other_human.resources,  # Current resources after the change
                     reason="LUV"  # Reason for the resource change
                 )
@@ -399,7 +432,7 @@ class Being:
                     )
                 )
                 other_human.resources = 0  # The defeated loses all resources
-                other_human.is_zombie = True  # The defeated becomes a zombie
+                other_human.turn_into_zombie()  # The defeated becomes a zombie
                 self.hh_kd += 1
                 self.h_enc += 1
                 enc_log_instance = EncounterLog()
@@ -477,7 +510,7 @@ class Being:
                             )
                         else:
                             other_human.theft = 0
-                            other_human.is_zombie = True
+                            other_human.turn_into_zombie()
 
                     else:
                         self.war_xp += random.randint(0, (other_human.war_xp + 1))  # Gain war experience
@@ -494,7 +527,7 @@ class Being:
                             )
                         )
                         other_human.resources = 0  # The defeated loses all resources
-                        other_human.is_zombie = True  # The defeated becomes a zombie
+                        other_human.turn_into_zombie()  # The defeated becomes a zombie
                         self.hh_kd += 1
                         self.h_enc += 1
                         enc_log_instance = EncounterLog()
@@ -593,18 +626,36 @@ class Grid:
             # Add the new position
             self.occupied_positions.add((being.x, being.y))
 
-    def simulate_day(self):
+    def simulate_day(self, group_manager):
+        for group in group_manager.groups:
+            group.move_group_towards_closest_resource(self, resource_threshold)
+
         for being in list(self.beings):  # using a list copy here to avoid issues while modifying the list
             if being.is_active:
-                self.move_being(being)
+                if not being.group or not being.group.has_moved:
+                    self.move_being(being)
                 for other in list(self.beings):
                     if being.is_active and other.is_active and being != other:
                         if abs(being.x - other.x) <= 1 and abs(being.y - other.y) <= 1:
-                            being.encounter(other, self)
+                            # If both beings are part of the same group, skip the encounter
+                            if being.group and other.group and being.group == other.group:
+                                continue
+                            # If beings belong to different groups, let the groups handle the encounter
+                            elif being.group and other.group:
+                                group_manager.group_encounter(being.group, other.group)
+                            # If only one being is part of a group, let the group handle the encounter
+                            elif being.group:
+                                group_manager.individual_encounter(being.group, other)
+                            elif other.group:
+                                group_manager.individual_encounter(other.group, being)
+                            # If neither being is part of a group, proceed with individual encounter
+                            else:
+                                being.encounter(other, self)
+                    # Update being status after encounters
                 being.update_status()
 
-        # Now remove inactive beings
-        self.remove_inactive_beings()
+                # Remove inactive beings after all actions
+                self.remove_inactive_beings()
 
     def remove_inactive_beings(self):
         self.beings = [being for being in self.beings if being.is_active]
